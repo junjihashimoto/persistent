@@ -24,6 +24,9 @@ keyToTxt v = error $ "do not support "++show v
 dummyFromKey :: Key v -> Maybe v
 dummyFromKey _ = Nothing
 
+dummyFromFList :: [Filter v] -> v
+dummyFromFList _ = error "huga"
+
 dummyFromUnique :: Unique v -> Maybe v
 dummyFromUnique _ = Nothing
 
@@ -44,6 +47,12 @@ uniqkey2key uniqkey =
 entity2bin :: (PersistEntity val) => val -> B.ByteString
 entity2bin val = BL.toStrict (A.encode (map toPersistValue (toPersistFields val)))
 
+entityFilter :: (PersistEntity val) => val -> Filter val -> Bool
+entityFilter val (Filter field value filter) = True
+
+
+entityFilters :: (PersistEntity val) => val -> [Filter val] -> Bool
+entityFilters val filters =  and $ map (entityFilter val) filters
 
 kv2v :: [PersistValue] -> [PersistValue]
 kv2v [] = []

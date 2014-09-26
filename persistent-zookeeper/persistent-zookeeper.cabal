@@ -35,6 +35,7 @@ library
                    , template-haskell
                    , base64-bytestring
                    , stm
+                   , conduit
 
     exposed-modules: Database.Persist.Zookeeper
 
@@ -42,6 +43,7 @@ library
                      Database.Persist.Zookeeper.Internal
                      Database.Persist.Zookeeper.Store
                      Database.Persist.Zookeeper.Unique
+                     Database.Persist.Zookeeper.Query
                      Database.Persist.Zookeeper.PathPiece
                      Database.Persist.Zookeeper.ZooUtil
 
