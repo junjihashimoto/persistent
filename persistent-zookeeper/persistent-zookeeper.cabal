@@ -25,6 +25,7 @@ library
                    , attoparsec
                    , mtl
                    , transformers
+                   , transformers-base
                    , monad-control
                    , utf8-string           >= 0.3.7    && < 0.4.0
                    , binary                >= 0.7      && < 0.8
