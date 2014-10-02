@@ -30,6 +30,8 @@ main =
       let val = Person "Test/hoge" 12
       describe "PersistUnique test" $ do
         it "insertUnique" $ do
+          print $ show $ filterClause val [PersonName ==. ""]
+          print $ show $ filterClause val [PersonAge <=. 100]
           v <- flip runZookeeperPool conn $ do
             deleteBy $ PersonU "Test/hoge"
             insertUnique val
@@ -57,5 +59,3 @@ main =
             delete key'
             get key'
           v' `shouldBe` Nothing
-      
-      
