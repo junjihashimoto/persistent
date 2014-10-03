@@ -12,7 +12,8 @@ import Database.Persist.Types
 import Database.Persist.Sql
 import Control.Applicative (Applicative)
 import Data.Monoid
-import Data.List
+import Data.List hiding (delete)
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.IO.Class (MonadIO (..))
@@ -27,15 +28,86 @@ import Database.Persist.Zookeeper.ZooUtil
 import Data.Maybe
 import qualified Data.Map as M
 import Data.Conduit
+import qualified Data.Conduit.List as CL
 
 filter2path :: (PersistEntity val) => [Filter val] -> String 
 filter2path filterList = entity2path $ dummyFromFList filterList
 
+getMap :: PersistEntity val => val -> M.Map T.Text PersistValue
+getMap val =  M.fromList $ getList val
+getList :: PersistEntity val => val -> [(T.Text,PersistValue)]
+getList val =  
+  let fields = fmap toPersistValue (toPersistFields val)
+      in zip (getFieldsName val) fields
+getFieldsName :: (PersistEntity val) => val -> [T.Text]
+getFieldsName val =  fmap (unDBName.fieldDB) $ entityFields $ entityDef $ Just val
+getFieldName :: (PersistEntity val,PersistField typ) => EntityField val typ -> T.Text
+getFieldName field =  unDBName $ fieldDB $ persistFieldDef $ field
+fieldval :: (PersistEntity val,PersistField typ) => EntityField val typ -> val -> PersistValue
+fieldval field val =  (getMap val) M.! (getFieldName field)
+
+
+updateEntity :: PersistEntity val =>  val -> [Update val] -> Either T.Text val
+updateEntity val upds = 
+  fromPersistValues $ map snd $ foldl updateVals (getList val) upds
+
+
+updateVals :: PersistEntity val =>  [(T.Text,PersistValue)] -> Update val -> [(T.Text,PersistValue)]
+updateVals [] (Update field val upd) = []
+updateVals ((k,v):xs) u@(Update field val upd) = 
+  if getFieldName field == k
+    then (k,updateVal v u):xs
+    else (k,v):updateVals xs u
+
+updateVal :: PersistEntity val =>  PersistValue -> Update val -> PersistValue
+updateVal v (Update field val upd) = 
+  case upd of
+    Assign -> toPersistValue val
+    _ -> error "not support"
+    -- Add -> (+) <$> v <$> toPersistValue val 
+    -- Subtract -> v - toPersistValue val 
+    -- Multiply -> v * toPersistValue val 
+    -- Divide -> v `div` toPersistValue val 
+
+
 instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => PersistQuery (ZookeeperT m) where
-  update key valList = return ()
-  updateGet key valLIst = return $ fromJust $ dummyFromKey key
-  updateWhere filterList valList = return ()
-  deleteWhere filterList = return ()
+  update key valList = do
+    va <- get key
+    case va of
+      Nothing -> return ()
+      Just v ->
+        case updateEntity v valList of
+          Right v' -> 
+            replace key v'
+          Left v' -> error $ show v'
+  updateWhere filterList valList = do
+    (selectKeys filterList []) $$ loop
+    where
+      loop = do
+        key <- await
+        case key of
+          Just key' -> do
+            lift $ update key' valList
+            loop
+          Nothing ->
+            return ()
+  deleteWhere filterList = do
+    (str::[String]) <- execZookeeperT $ \zk -> do
+      Z.getChildren zk (filter2path filterList) Nothing
+    loop str
+    where
+      loop [] = return ()
+      loop (x:xs) = do
+        let key = txtToKey (T.pack x)
+        va <- get key
+        case va of
+          Nothing -> return ()
+          Just v -> do
+            let (chk,_,_) = filterClause v filterList 
+            if chk
+              then delete key
+              else return ()
+        loop xs
   selectSource filterList selectOpts = do
     (str::[String]) <- lift $ execZookeeperT $ \zk ->
       Z.getChildren zk (filter2path filterList) Nothing
@@ -46,15 +118,19 @@ instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => Persist
         let key = txtToKey (T.pack x)
         va <- get key
         case va of
-          Nothing ->
-            loop xs
+          Nothing -> return ()
           Just v -> do
             let (chk,_,_) = filterClause v filterList 
             if chk
               then yield $ Entity key v
               else return ()
-            loop xs
-  selectFirst filterList selectOpts = return Nothing
+        loop xs
+  selectFirst filterList selectOpts =  do
+    (selectSource filterList selectOpts) $$ do
+      val <- await
+      case val of
+        Just val' -> return $ Just val'
+        Nothing -> return Nothing
   selectKeys filterList selectOpts = do 
     (str::[String]) <- lift $ execZookeeperT $ \zk -> 
       Z.getChildren zk (filter2path filterList) Nothing
@@ -63,9 +139,19 @@ instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => Persist
       loop [] = return ()
       loop (x:xs) = do
         let key = txtToKey (T.pack x)
-        yield key
+        va <- get key
+        case va of
+          Nothing -> return ()
+          Just v -> do
+            let (chk,_,_) = filterClause v filterList 
+            if chk
+              then yield key
+              else return ()
         loop xs
-  count filterList = return 0
+  count filterList = do
+    v <- selectList filterList []
+    return $ length v
+
   
 
 updateFieldDef :: PersistEntity v => Update v -> FieldDef SqlType
@@ -212,16 +298,6 @@ filterClauseHelper includeWhere orNull val filters =
         tn = entityDB
            $ entityDef $ dummyFromFilts [Filter field value pfilter]
         name = unDBName $ fieldDB $ persistFieldDef field
-        getMap :: PersistEntity val => val -> M.Map T.Text PersistValue
-        getMap val =  
-          let fields = fmap toPersistValue (toPersistFields val)
-              in M.fromList $ zip (getFieldsName val) fields
-        getFieldsName :: (PersistEntity val) => val -> [T.Text]
-        getFieldsName val =  fmap (unDBName.fieldDB) $ entityFields $ entityDef $ Just val
-        getFieldName :: (PersistEntity val,PersistField typ) => EntityField val typ -> T.Text
-        getFieldName field =  unDBName $ fieldDB $ persistFieldDef $ field
-        fieldval :: (PersistEntity val,PersistField typ) => EntityField val typ -> val -> PersistValue
-        fieldval field val =  (getMap val) M.! (getFieldName field)
         qmarks = case value of
                     Left _ -> "?6"
                     Right x ->
