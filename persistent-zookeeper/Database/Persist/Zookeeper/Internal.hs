@@ -47,13 +47,6 @@ uniqkey2key uniqkey =
 entity2bin :: (PersistEntity val) => val -> B.ByteString
 entity2bin val = BL.toStrict (A.encode (map toPersistValue (toPersistFields val)))
 
-entityFilter :: (PersistEntity val) => val -> Filter val -> Bool
-entityFilter val (Filter field value filter) = True
-
-
-entityFilters :: (PersistEntity val) => val -> [Filter val] -> Bool
-entityFilters val filters =  and $ map (entityFilter val) filters
-
 kv2v :: [PersistValue] -> [PersistValue]
 kv2v [] = []
 kv2v ((PersistList [_k,v] ):xs) = v:kv2v xs

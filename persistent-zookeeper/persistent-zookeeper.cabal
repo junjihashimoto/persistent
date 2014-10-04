@@ -1,5 +1,5 @@
 name:            persistent-zookeeper
-version:         0.0.1
+version:         0.0.3
 license:         BSD3
 license-file:    LICENSE
 author:          Junji Hashimoto <junji.hashimoto@gree.net>
@@ -11,9 +11,9 @@ cabal-version:   >= 1.8
 maintainer:      Junji Hashimoto <junji.hashimoto@gree.net>
 build-type:      Simple
 
--- source-repository head
---         type:           git
---         location:       https://github.com/yesodweb/persistent.git
+source-repository head
+        type:           git
+        location:       https://github.com/junjihashimoto/persistent.git
 
 library
     build-depends:   base                  >= 4        && < 5

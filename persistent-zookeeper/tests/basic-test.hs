@@ -14,6 +14,7 @@ let zookeeperSettings = mkPersistSettings (ConT ''ZookeeperBackend)
 Person
     name String
     age Int
+    hoge Int Maybe
     PersonU name
     deriving Show
     deriving Eq
@@ -27,11 +28,9 @@ main =
   withZookeeperConn zookeeperConf $ \conn -> do
     hspec $ do
       let key = (Key (PersistText "/person/WyJzVGVzdC9ob2dlIl0="))
-      let val = Person "Test/hoge" 12
+      let val = Person "Test/hoge" 12 Nothing
       describe "PersistUnique test" $ do
         it "insertUnique" $ do
-          print $ show $ filterClause val [PersonName ==. ""]
-          print $ show $ filterClause val [PersonAge <=. 100]
           v <- flip runZookeeperPool conn $ do
             deleteBy $ PersonU "Test/hoge"
             insertUnique val
@@ -59,3 +58,44 @@ main =
             delete key'
             get key'
           v' `shouldBe` Nothing
+      describe "PersistQeuery test" $ do
+        let check val filter expbool = case filterClause val filter of
+                                         a@(bool,_,_) -> do
+                                         print $ show a
+                                         bool `shouldBe` expbool
+        it "FilterTestEq" $ do
+          check (Person "Test/hoge" 12 Nothing) [PersonName ==. ""] False
+          check (Person "Test/hoge" 12 (Just 3)) [PersonHoge ==. Just 3] True
+          check (Person "Test/hoge" 12 Nothing) [PersonAge ==. 12]  True
+        it "FilterTestNe" $ do
+          check (Person "Test/hoge" 12 Nothing) [PersonAge !=. 12] False
+          check (Person "Test/hoge" 12 Nothing) [PersonAge !=. 11] True
+          check (Person "Test/hoge" 12 (Just 4)) [PersonHoge !=. Just 4] False
+          check (Person "Test/hoge" 12 Nothing) [PersonHoge !=. Just 3] True
+          check (Person "Test/hoge" 12 (Just 4)) [PersonHoge !=. Just 3] True
+        it "FilterTestLt" $ do
+          check (Person "Test/hoge" 12 (Just 4)) [PersonHoge <=. Just 3] False
+          check (Person "Test/hoge" 12 (Just 2)) [PersonHoge <=. Just 3] True
+        it "StoreTest" $ do
+          va <- flip runZookeeperPool conn $ do
+            deleteWhere [PersonName !=. ""]
+            insert (Person "hoge0" 1 Nothing)
+            insert (Person "hoge1" 2 Nothing)
+            insert (Person "hoge2" 3 Nothing)
+            insert (Person "hoge3" 4 Nothing)
+            selectList [PersonAge ==. 2] []
+          (entityVal (head va)) `shouldBe` (Person "hoge1" 2 Nothing)
+          [Entity k v] <- flip runZookeeperPool conn $ do
+            selectList [PersonName ==. "hoge2"] []
+          v `shouldBe` (Person "hoge2" 3 Nothing)
+          [Entity k v] <- flip runZookeeperPool conn $ do
+            updateWhere [PersonName ==. "hoge2"] [PersonAge =. 10]
+            selectList [PersonName ==. "hoge2"] []
+          v `shouldBe` (Person "hoge2" 10 Nothing)
+          v <- flip runZookeeperPool conn $ do
+            selectList [PersonName !=. ""] []
+          length v `shouldBe` 4
+          v <- flip runZookeeperPool conn $ do
+            deleteWhere [PersonName !=. ""]
+            selectList [PersonName !=. ""] []
+          length v `shouldBe` 0
