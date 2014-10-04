@@ -59,10 +59,10 @@ main =
             get key'
           v' `shouldBe` Nothing
       describe "PersistQeuery test" $ do
-        let check val filter expbool = case filterClause val filter of
-                                         a@(bool,_,_) -> do
-                                         print $ show a
-                                         bool `shouldBe` expbool
+        let check val' filter' expbool = case filterClause val' filter' of
+                                           a@(bool,_,_) -> do
+                                           print $ show a
+                                           bool `shouldBe` expbool
         it "FilterTestEq" $ do
           check (Person "Test/hoge" 12 Nothing) [PersonName ==. ""] False
           check (Person "Test/hoge" 12 (Just 3)) [PersonHoge ==. Just 3] True
@@ -79,23 +79,23 @@ main =
         it "StoreTest" $ do
           va <- flip runZookeeperPool conn $ do
             deleteWhere [PersonName !=. ""]
-            insert (Person "hoge0" 1 Nothing)
-            insert (Person "hoge1" 2 Nothing)
-            insert (Person "hoge2" 3 Nothing)
-            insert (Person "hoge3" 4 Nothing)
+            _ <- insert (Person "hoge0" 1 Nothing)
+            _ <- insert (Person "hoge1" 2 Nothing)
+            _ <- insert (Person "hoge2" 3 Nothing)
+            _ <- insert (Person "hoge3" 4 Nothing)
             selectList [PersonAge ==. 2] []
           (entityVal (head va)) `shouldBe` (Person "hoge1" 2 Nothing)
-          [Entity k v] <- flip runZookeeperPool conn $ do
+          [Entity _k v] <- flip runZookeeperPool conn $ do
             selectList [PersonName ==. "hoge2"] []
           v `shouldBe` (Person "hoge2" 3 Nothing)
-          [Entity k v] <- flip runZookeeperPool conn $ do
+          [Entity _k v1] <- flip runZookeeperPool conn $ do
             updateWhere [PersonName ==. "hoge2"] [PersonAge =. 10]
             selectList [PersonName ==. "hoge2"] []
-          v `shouldBe` (Person "hoge2" 10 Nothing)
-          v <- flip runZookeeperPool conn $ do
+          v1 `shouldBe` (Person "hoge2" 10 Nothing)
+          v2 <- flip runZookeeperPool conn $ do
             selectList [PersonName !=. ""] []
-          length v `shouldBe` 4
-          v <- flip runZookeeperPool conn $ do
+          length v2 `shouldBe` 4
+          v3 <- flip runZookeeperPool conn $ do
             deleteWhere [PersonName !=. ""]
             selectList [PersonName !=. ""] []
-          length v `shouldBe` 0
+          length v3 `shouldBe` 0
