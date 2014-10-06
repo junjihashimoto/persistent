@@ -12,14 +12,22 @@ import Database.Persist.Class
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.ByteString.Base64.URL as B64
+import qualified Data.Map as M
 
 
 txtToKey :: (PersistEntity val) => T.Text -> Key val
-txtToKey = Key . PersistText
+txtToKey txt = 
+  case (keyFromValues [PersistText txt]) of
+    Right v -> v
+    Left v -> error $ T.unpack v
 
 keyToTxt :: (PersistEntity val) => Key val -> T.Text
-keyToTxt (Key (PersistText key)) = key
-keyToTxt v = error $ "do not support "++show v
+--keyToTxt (Key (PersistText key)) = key
+keyToTxt key = 
+  case keyToValues key of
+    [PersistText txt] -> txt
+    _ -> error "keyToTxt"
+--keyToTxt v = error $ "do not support "++show v
 
 dummyFromKey :: Key v -> Maybe v
 dummyFromKey _ = Nothing
@@ -71,3 +79,46 @@ entity2path val = "/" <> (T.unpack $ val2table val)
 
 -- key2path :: (PersistEntity val) => Key val -> String
 -- key2path key = entityAndKey2path (fromJust (dummyFromKey key)) key
+
+
+
+filter2path :: (PersistEntity val) => [Filter val] -> String 
+filter2path filterList = entity2path $ dummyFromFList filterList
+
+getMap :: PersistEntity val => val -> M.Map T.Text PersistValue
+getMap val =  M.fromList $ getList val
+getList :: PersistEntity val => val -> [(T.Text,PersistValue)]
+getList val =  
+  let fields = fmap toPersistValue (toPersistFields val)
+      in zip (getFieldsName val) fields
+getFieldsName :: (PersistEntity val) => val -> [T.Text]
+getFieldsName val =  fmap (unDBName.fieldDB) $ entityFields $ entityDef $ Just val
+getFieldName :: (PersistEntity val,PersistField typ) => EntityField val typ -> T.Text
+getFieldName field =  unDBName $ fieldDB $ persistFieldDef $ field
+fieldval :: (PersistEntity val,PersistField typ) => EntityField val typ -> val -> PersistValue
+fieldval field val =  (getMap val) M.! (getFieldName field)
+
+updateEntity :: PersistEntity val =>  val -> [Update val] -> Either T.Text val
+updateEntity val upds = 
+  fromPersistValues $ map snd $ foldl updateVals (getList val) upds
+
+
+updateVals :: PersistEntity val =>  [(T.Text,PersistValue)] -> Update val -> [(T.Text,PersistValue)]
+updateVals [] _ = []
+updateVals ((k,v):xs) u@(Update field _ _) = 
+  if getFieldName field == k
+    then (k,updateVal v u):xs
+    else (k,v):updateVals xs u
+updateVals _ _ = error "not supported"
+
+updateVal :: PersistEntity val =>  PersistValue -> Update val -> PersistValue
+updateVal _v (Update _ val upd) = 
+  case upd of
+    Assign -> toPersistValue val
+    _ -> error "not support"
+    -- Add -> (+) <$> v <$> toPersistValue val 
+    -- Subtract -> v - toPersistValue val 
+    -- Multiply -> v * toPersistValue val 
+    -- Divide -> v `div` toPersistValue val 
+updateVal _v _ = error "not supported"
+

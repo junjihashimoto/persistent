@@ -13,6 +13,7 @@ module Database.Persist.Zookeeper.Config
     , Connection
     , ZookeeperT (..)
     , runZookeeperPool
+    , runZookeeper
     , withZookeeperConn
     , thisConnection
     , module Database.Persist
@@ -26,6 +27,7 @@ import Data.Aeson
 import Control.Monad (mzero, MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (MonadTrans (..))
+import Control.Monad.Trans.Control
 import Control.Applicative (Applicative (..))
 import Control.Monad.Reader(ReaderT(..))
 import Control.Monad.Reader.Class
@@ -59,6 +61,13 @@ withZookeeperConn conf connectionReader = do
 
 runZookeeperPool :: ZookeeperT m a -> Connection -> m a
 runZookeeperPool (ZookeeperT r) = runReaderT r
+
+--runZookeeper :: ZookeeperT m a -> Connection -> m a
+runZookeeper :: MonadBaseControl IO m =>
+                Connection -> ReaderT Z.ZooStat m b -> m b
+runZookeeper pool action = withResource pool (\stat -> runReaderT action stat)
+
+
 
 instance PersistConfig ZookeeperConf where
     type PersistConfigBackend ZookeeperConf = ZookeeperT

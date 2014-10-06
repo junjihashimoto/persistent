@@ -9,18 +9,13 @@ module Database.Persist.Zookeeper.PathPiece
 
 import Database.Persist
 import Database.Persist.Zookeeper.Store
+import Database.Persist.Zookeeper.ZooUtil
 import Web.PathPieces (PathPiece (..))
-import qualified Data.ByteString.Char8 as B
-import qualified Data.Text as T
-import qualified Data.ByteString.Base64.URL as B64
-
+import Control.Applicative
 
 -- | ToPathPiece is used to convert a key to/from text
-instance PathPiece (KeyBackend ZookeeperBackend entity) where
-  fromPathPiece txt =
-    case B64.decode $ B.pack $ T.unpack txt of
-      Right v -> Just (Key (PersistText (T.pack $ B.unpack v)))
-      Left _ -> Nothing
-  toPathPiece (Key (PersistText txt)) = T.pack $ B.unpack $ B64.encode $ B.pack $ T.unpack txt
-  toPathPiece (Key _) = error "Wrong key for pathpiece "
+instance PathPiece (BackendKey ZooStat) where
+  fromPathPiece txt = pure $ ZooKey txt
+  toPathPiece (ZooKey txt) = txt
+
 

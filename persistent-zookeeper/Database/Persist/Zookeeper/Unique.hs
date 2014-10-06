@@ -18,7 +18,7 @@ import Database.Persist.Zookeeper.Internal
 import Database.Persist.Zookeeper.Store
 import Database.Persist.Zookeeper.ZooUtil
 
-instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => PersistUnique (ZookeeperT m) where
+instance PersistUnique ZooStat where
     getBy uniqVal = do
       let key = uniqkey2key uniqVal
       val <- get key
@@ -34,7 +34,8 @@ instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => Persist
       mUniqVal <- val2uniqkey val
       case mUniqVal of
         Just uniqVal -> do
-          let key@(Key (PersistText txt)) = uniqkey2key uniqVal
+          let key = (uniqkey2key uniqVal)
+          let txt = keyToTxt key
           execZookeeperT $ \zk -> do
             let dir = entity2path val
             r <- zCreate zk dir (T.unpack txt) (Just (entity2bin val)) []

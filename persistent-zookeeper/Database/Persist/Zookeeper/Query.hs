@@ -9,79 +9,29 @@ module Database.Persist.Zookeeper.Query
 
 import Database.Persist
 import Data.Monoid
-import Control.Applicative
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Trans.Control (MonadBaseControl)
-import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
 import qualified Data.Text as T
 import qualified Database.Zookeeper as Z
-import Database.Persist.Zookeeper.Config
 import Database.Persist.Zookeeper.Internal
 import Database.Persist.Zookeeper.Store
-import qualified Data.Map as M
+import Database.Persist.Zookeeper.ZooUtil
 import Data.Conduit
+import qualified Data.Conduit.List as CL
+import Data.Acquire
 
-filter2path :: (PersistEntity val) => [Filter val] -> String 
-filter2path filterList = entity2path $ dummyFromFList filterList
-
-getMap :: PersistEntity val => val -> M.Map T.Text PersistValue
-getMap val =  M.fromList $ getList val
-getList :: PersistEntity val => val -> [(T.Text,PersistValue)]
-getList val =  
-  let fields = fmap toPersistValue (toPersistFields val)
-      in zip (getFieldsName val) fields
-getFieldsName :: (PersistEntity val) => val -> [T.Text]
-getFieldsName val =  fmap (unDBName.fieldDB) $ entityFields $ entityDef $ Just val
-getFieldName :: (PersistEntity val,PersistField typ) => EntityField val typ -> T.Text
-getFieldName field =  unDBName $ fieldDB $ persistFieldDef $ field
-fieldval :: (PersistEntity val,PersistField typ) => EntityField val typ -> val -> PersistValue
-fieldval field val =  (getMap val) M.! (getFieldName field)
-
-
-updateEntity :: PersistEntity val =>  val -> [Update val] -> Either T.Text val
-updateEntity val upds = 
-  fromPersistValues $ map snd $ foldl updateVals (getList val) upds
-
-
-updateVals :: PersistEntity val =>  [(T.Text,PersistValue)] -> Update val -> [(T.Text,PersistValue)]
-updateVals [] _ = []
-updateVals ((k,v):xs) u@(Update field _ _) = 
-  if getFieldName field == k
-    then (k,updateVal v u):xs
-    else (k,v):updateVals xs u
-updateVals _ _ = error "not supported"
-
-updateVal :: PersistEntity val =>  PersistValue -> Update val -> PersistValue
-updateVal _v (Update _ val upd) = 
-  case upd of
-    Assign -> toPersistValue val
-    _ -> error "not support"
-    -- Add -> (+) <$> v <$> toPersistValue val 
-    -- Subtract -> v - toPersistValue val 
-    -- Multiply -> v * toPersistValue val 
-    -- Divide -> v `div` toPersistValue val 
-updateVal _v _ = error "not supported"
-
-
-instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => PersistQuery (ZookeeperT m) where
-  update key valList = do
-    va <- get key
-    case va of
-      Nothing -> return ()
-      Just v ->
-        case updateEntity v valList of
-          Right v' -> 
-            replace key v'
-          Left v' -> error $ show v'
+instance PersistQuery ZooStat where
   updateWhere filterList valList = do
-    (selectKeys filterList []) $$ loop
+    stat <- ask
+    srcRes <- selectKeysRes filterList []
+    liftIO $ with srcRes ( $$ loop stat)
     where
-      loop = do
+      loop stat = do
         key <- await
         case key of
           Just key' -> do
-            lift $ update key' valList
-            loop
+            liftIO $ flip runReaderT stat $ update key' valList
+            loop stat
           Nothing ->
             return ()
   deleteWhere filterList = do
@@ -101,15 +51,16 @@ instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => Persist
               then delete key
               else return ()
         loop xs
-  selectSource filterList [] = do
-    (str::[String]) <- lift $ execZookeeperT $ \zk -> do
+  selectSourceRes filterList [] = do
+    stat <- ask
+    (str::[String]) <- liftIO $ flip runReaderT stat $ execZookeeperT $ \zk -> do
       Z.getChildren zk (filter2path filterList) Nothing
-    loop str
+    return $ return $ loop stat str
     where
-      loop [] = return ()
-      loop (x:xs) = do
+      loop _ [] = return ()
+      loop stat (x:xs) = do
         let key = txtToKey $ T.pack $ (filter2path filterList) <> "/" <> x
-        va <- get key
+        va <- liftIO $ flip runReaderT stat $ get key
         case va of
           Nothing -> return ()
           Just v -> do
@@ -117,23 +68,22 @@ instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => Persist
             if chk
               then yield $ Entity key v
               else return ()
-        loop xs
-  selectSource _ _ = error "not supported selectOpt"
-  selectFirst filterList selectOpts =  do
-    (selectSource filterList selectOpts) $$ do
-      val <- await
-      case val of
-        Just val' -> return $ Just val'
-        Nothing -> return Nothing
-  selectKeys filterList [] = do 
-    (str::[String]) <- lift $ execZookeeperT $ \zk -> 
+        loop stat xs
+  selectSourceRes _ _ = error "not supported selectOpt"
+  selectFirst filterList [] =  do
+    srcRes <- selectSourceRes filterList []
+    liftIO $ with srcRes ( $$ CL.head)
+  selectFirst _ _ = error "not supported selectOpt"
+  selectKeysRes filterList [] = do 
+    stat <- ask
+    (str::[String]) <- liftIO $ flip runReaderT stat $ execZookeeperT $ \zk -> 
       Z.getChildren zk (filter2path filterList) Nothing
-    loop str
+    return $ return (loop stat str)
     where
-      loop [] = return ()
-      loop (x:xs) = do
+      loop _ [] = return ()
+      loop stat (x:xs) = do
         let key = txtToKey $ T.pack $ (filter2path filterList) <> "/" <> x
-        va <- get key
+        va <- liftIO $ flip runReaderT stat $ get key
         case va of
           Nothing -> return ()
           Just v -> do
@@ -141,8 +91,8 @@ instance (Applicative m, Functor m, MonadIO m, MonadBaseControl IO m) => Persist
             if chk
               then yield key
               else return ()
-        loop xs
-  selectKeys  _ _ = error "not supported selectOpt"
+        loop stat xs
+  selectKeysRes  _ _ = error "not supported selectOpt"
   count filterList = do
     v <- selectList filterList []
     return $ length v
