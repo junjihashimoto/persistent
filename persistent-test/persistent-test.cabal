@@ -17,6 +17,10 @@ extra-source-files:
   test/main.hs
   test/from-cabal
 
+Flag zookeeper
+   Description: test only Zookeeper.  default is to test just sqlite.
+   Default: False
+
 Flag mongodb
    Description: test only MongoDB.  default is to test just sqlite.
    Default: False
@@ -149,7 +153,7 @@ library
    if flag(nooverlap)
      cpp-options: -DNO_OVERLAP
 
-   if !flag(postgresql) && !flag(mysql) && !flag(mongodb)
+   if !flag(postgresql) && !flag(mysql) && !flag(mongodb) && !flag(zookeeper)
       exposed-modules: Database.Persist.Sqlite
                        Database.Sqlite
 
@@ -197,6 +201,14 @@ library
      exposed-modules:
                      Database.Persist.MongoDB
 
+   if flag(zookeeper)
+     build-depends:
+                     hzk
+
+     hs-source-dirs: persistent-zookeeper
+     cpp-options: -DWITH_MONGODB -DDEBUG
+     exposed-modules:
+                     Database.Persist.Zookeeper
 
    if flag(couchdb)
      build-depends: CouchDB               >= 1.2
