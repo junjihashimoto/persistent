@@ -204,9 +204,10 @@ library
    if flag(zookeeper)
      build-depends:
                      hzk
+                   , stm
 
      hs-source-dirs: persistent-zookeeper
-     cpp-options: -DWITH_MONGODB -DDEBUG
+     cpp-options: -DWITH_ZOOKEEPER -DDEBUG
      exposed-modules:
                      Database.Persist.Zookeeper
 
