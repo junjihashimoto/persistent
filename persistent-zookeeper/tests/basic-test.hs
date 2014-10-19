@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Main where
 
+import qualified Database.Zookeeper as Z
 import Database.Persist
 import Database.Persist.Zookeeper
 import Database.Persist.Zookeeper.Internal
@@ -13,7 +14,7 @@ import Data.Maybe
 import Data.Pool
 import Test.Hspec
 
-let zookeeperSettings = mkPersistSettings (ConT ''ZooStat)
+let zookeeperSettings = defaultZookeeperSettings
  in share [mkPersist zookeeperSettings] [persistLowerCase|
 Person
     name String

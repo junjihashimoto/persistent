@@ -7,6 +7,7 @@
 module Database.Persist.Zookeeper.PathPiece
     where
 
+import qualified Database.Zookeeper as Z
 import Database.Persist
 import Database.Persist.Zookeeper.Store
 import Database.Persist.Zookeeper.ZooUtil
@@ -14,7 +15,7 @@ import Web.PathPieces (PathPiece (..))
 import Control.Applicative
 
 -- | ToPathPiece is used to convert a key to/from text
-instance PathPiece (BackendKey ZooStat) where
+instance PathPiece (BackendKey Z.Zookeeper) where
   fromPathPiece txt = pure $ ZooKey txt
   toPathPiece (ZooKey txt) = txt
 

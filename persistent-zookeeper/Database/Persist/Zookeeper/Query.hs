@@ -20,7 +20,7 @@ import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.Acquire
 
-instance PersistQuery ZooStat where
+instance PersistQuery Z.Zookeeper where
   updateWhere filterList valList = do
     stat <- ask
     srcRes <- selectKeysRes filterList []

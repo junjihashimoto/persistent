@@ -6,23 +6,17 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Database.Persist.Zookeeper.Config
-    (
-     ZookeeperConf (..)
-    , Connection
-    , ZookeeperT (..)
-    , runZookeeperPool
-    , runZookeeper
-    , withZookeeperConn
-    , thisConnection
-    , defaultZookeeperConf
-    , module Database.Persist
-    ) where
+    where
 
 import Database.Persist
+import Database.Persist.TH
+import Language.Haskell.TH
 import qualified Database.Persist.Zookeeper.ZooUtil as Z
 import qualified Database.Zookeeper as Z
+import qualified Database.Zookeeper.Pool as Z
 import Data.Pool
 import Data.Aeson
 import Control.Monad (mzero, MonadPlus(..))
@@ -44,7 +38,7 @@ data ZookeeperConf = ZookeeperConf {
   , zMaxResources :: Int
 } deriving (Show)
 
-type Connection = Pool Z.ZooStat
+type Connection = Pool Z.Zookeeper
 
 -- | Monad reader transformer keeping Zookeeper connection through out the work
 newtype ZookeeperT m a = ZookeeperT { runZookeeperT :: ReaderT Connection m a }
@@ -65,12 +59,14 @@ runZookeeperPool (ZookeeperT r) = runReaderT r
 
 --runZookeeper :: ZookeeperT m a -> Connection -> m a
 runZookeeper :: MonadBaseControl IO m =>
-                Connection -> ReaderT Z.ZooStat m b -> m b
+                Connection -> ReaderT Z.Zookeeper m b -> m b
 runZookeeper pool action = withResource pool (\stat -> runReaderT action stat)
 
 defaultZookeeperConf :: ZookeeperConf
 defaultZookeeperConf = ZookeeperConf "localhost:2181" 10000 1 50 30
 
+defaultZookeeperSettings :: MkPersistSettings
+defaultZookeeperSettings = (mkPersistSettings $ ConT ''Z.Zookeeper)
 
 instance PersistConfig ZookeeperConf where
     type PersistConfigBackend ZookeeperConf = ZookeeperT

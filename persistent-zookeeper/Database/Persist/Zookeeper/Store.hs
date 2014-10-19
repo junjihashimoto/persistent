@@ -30,10 +30,10 @@ import qualified Data.Aeson as A
 
   
 -- -- | Execute Zookeeper transaction inside ZookeeperT monad transformer
-execZookeeperT :: (Read a,Show a,Monad m, MonadIO m) => (Z.Zookeeper -> IO (Either Z.ZKError a)) -> ReaderT ZooStat m a
+execZookeeperT :: (Read a,Show a,Monad m, MonadIO m) => (Z.Zookeeper -> IO (Either Z.ZKError a)) -> ReaderT Z.Zookeeper m a
 execZookeeperT action = do
     s <- ask
-    r <- liftIO $ zExec s action
+    r <- liftIO $ action s
     case r of
       (Right x) -> return x
       (Left x)  -> liftIO $ throwIO $ userError $ "Zookeeper error: code" ++ show x --fail $ show x
@@ -47,20 +47,20 @@ execZookeeperT action = do
 -- instance Sql.PersistFieldSql T.Text where
 --     sqlType _ = Sql.SqlOther "doesn't make much sense for MongoDB"
 
-instance Sql.PersistFieldSql (BackendKey ZooStat) where
+instance Sql.PersistFieldSql (BackendKey Z.Zookeeper) where
     sqlType _ = Sql.SqlOther "doesn't make much sense for MongoDB"
 
-instance A.ToJSON (BackendKey ZooStat) where
+instance A.ToJSON (BackendKey Z.Zookeeper) where
     toJSON (ZooKey key) = A.String key
 
-instance A.FromJSON (BackendKey ZooStat) where
+instance A.FromJSON (BackendKey Z.Zookeeper) where
     parseJSON (A.String key) = pure $ ZooKey key
     parseJSON _ = mzero
 
 
-instance PersistStore ZooStat where
+instance PersistStore Z.Zookeeper where
     --type PersistMonadBackend (ZookeeperT m) = ZookeeperBackend
-    newtype BackendKey ZooStat = ZooKey { unZooKey :: T.Text }
+    newtype BackendKey Z.Zookeeper = ZooKey { unZooKey :: T.Text }
         deriving (Show, Read, Eq, Ord, PersistField)
 
     insert val = do

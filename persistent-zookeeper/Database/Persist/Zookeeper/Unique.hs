@@ -18,7 +18,7 @@ import Database.Persist.Zookeeper.Internal
 import Database.Persist.Zookeeper.Store
 import Database.Persist.Zookeeper.ZooUtil
 
-instance PersistUnique ZooStat where
+instance PersistUnique Z.Zookeeper where
     getBy uniqVal = do
       let key = uniqkey2key uniqVal
       val <- get key
