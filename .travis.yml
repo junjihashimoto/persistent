@@ -13,6 +13,7 @@ script:
     - "cabal configure -fmysql --enable-tests      && cabal test"
     - "cabal configure -fpostgresql --enable-tests && cabal test"
     - "cabal configure -fmongodb --enable-tests    && cabal test"
+    - "cabal configure -fzookeeper --enable-tests  && cabal test"
 
 addons:
   postgresql: "9.3"
@@ -23,3 +24,4 @@ before_script:
 services:
     - mysql
     - mongodb
+    - zookeeper

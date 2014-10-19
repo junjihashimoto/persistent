@@ -23,6 +23,13 @@ module Init (
   , mkPersistSettings
   , Action
   , MongoDB.MongoContext
+#elif WITH_ZOOKEEPER
+  , dbName
+  , db'
+  , setupZoo
+  , mkPersistSettings
+  , ZookeeperT
+  , ZooStat
 #else
   , db
   , sqlite_database
@@ -40,7 +47,7 @@ module Init (
   , Text
   , module Control.Monad.Trans.Reader
   , module Control.Monad
-#ifndef WITH_MONGODB
+#ifndef WITH_MONGODB || WITH_ZOOKEEPER
   , module Database.Persist.Sql
 #endif
 ) where
@@ -67,6 +74,16 @@ import Database.Persist.TH (mkPersistSettings)
 import qualified Data.ByteString as BS
 
 import Control.Monad (void, replicateM, liftM)
+
+#elif WITH_ZOOKEEPER
+import qualified Database.Zookeeper as Z
+import Database.Persist.Zookeeper (ZooStat, ZookeeperT, withZookeeperConn, runZookeeperPool, defaultZookeeperConf, BackendKey(..))
+import Language.Haskell.TH.Syntax (Type(..))
+import Database.Persist.TH (mkPersistSettings)
+import Control.Monad (replicateM)
+import qualified Data.ByteString as BS
+
+import Control.Monad (void)
 
 #else
 import Control.Monad (liftM)
@@ -143,6 +160,31 @@ runConn f = do
 
 setupMongo :: Action IO ()
 setupMongo = void $ MongoDB.dropDatabase dbName
+
+
+db' :: Action IO () -> Action IO () -> Assertion
+db' actions cleanDB = do
+  r <- runConn (actions >> cleanDB)
+  return r
+
+instance Arbitrary PersistValue where
+    arbitrary = PersistObjectId `fmap` BS.pack `fmap` replicateM 12 arbitrary
+
+#elif WITH_ZOOKEEPER
+persistSettings :: MkPersistSettings
+persistSettings = (mkPersistSettings $ ConT ''ZoosSat) { mpsGeneric = True }
+
+dbName :: Text
+dbName = "persistent"
+
+type BackendMonad = MongoDB.MongoContext
+runConn :: (MonadIO m, MonadBaseControl IO m) => ZookeeperT m backend -> m ()
+runConn f = do
+  conf <- liftIO $ applyDockerEnv $ defaultMongoConf dbName -- { mgRsPrimary = Just "replicaset" }
+  void $ withMongoPool conf $ runMongoDBPool MongoDB.master f
+
+setupZookeeper :: Action IO ()
+setupZookeeper = void $ MongoDB.dropDatabase dbName
 
 
 db' :: Action IO () -> Action IO () -> Assertion

@@ -38,7 +38,7 @@ import qualified Control.Exception.Control as Control
 import Init
 
 import Control.Applicative ((<$>),(<*>))
-#ifndef WITH_MONGODB
+#ifndef WITH_MONGODB || WITH_ZOOKEEPER
 import Data.Maybe (isJust)
 import Database.Persist.TH (mkDeleteCascade)
 #endif

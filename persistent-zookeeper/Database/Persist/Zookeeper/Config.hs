@@ -16,6 +16,7 @@ module Database.Persist.Zookeeper.Config
     , runZookeeper
     , withZookeeperConn
     , thisConnection
+    , defaultZookeeperConf
     , module Database.Persist
     ) where
 
@@ -67,6 +68,8 @@ runZookeeper :: MonadBaseControl IO m =>
                 Connection -> ReaderT Z.ZooStat m b -> m b
 runZookeeper pool action = withResource pool (\stat -> runReaderT action stat)
 
+defaultZookeeperConf :: ZookeeperConf
+defaultZookeeperConf = ZookeeperConf "localhost:2181" 10000 1 50 30
 
 
 instance PersistConfig ZookeeperConf where

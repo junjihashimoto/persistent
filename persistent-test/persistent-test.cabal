@@ -153,18 +153,18 @@ library
    if flag(nooverlap)
      cpp-options: -DNO_OVERLAP
 
-   if !flag(postgresql) && !flag(mysql) && !flag(mongodb) && !flag(zookeeper)
-      exposed-modules: Database.Persist.Sqlite
-                       Database.Sqlite
+--   if !flag(postgresql) && !flag(mysql) && !flag(mongodb) && !flag(zookeeper)
+   exposed-modules: Database.Persist.Sqlite
+                    Database.Sqlite
 
-      if flag(systemlib)
-          extra-libraries: sqlite3
-      else
-          c-sources:   cbits/sqlite3.c
-          cc-options:  -fPIC
+   if flag(systemlib)
+       extra-libraries: sqlite3
+   else
+       c-sources:   cbits/sqlite3.c
+       cc-options:  -fPIC
 
-      if !os(windows)
-          extra-libraries: pthread
+   if !os(windows)
+       extra-libraries: pthread
 
 
    if flag(postgresql)
@@ -237,6 +237,9 @@ test-suite test
                  , resourcet
                  , scientific
 
+  if flag(zookeeper)
+      build-depends:   hzk
+      cpp-options: -DWITH_ZOOKEEPER -DDEBUG
   if flag(mongodb)
       cpp-options: -DWITH_MONGODB -DDEBUG
   if flag(postgresql)
