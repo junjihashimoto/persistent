@@ -1,6 +1,8 @@
 language: haskell
 
 install:
+    - sudo apt-get update
+    - sudo apt-get install libzookeeper-mt-dev zookeeperd
     - cabal update
     - cabal install -j hspec cabal-meta cabal-src
     - cabal-meta install -j --only-dep --force-reinstalls
