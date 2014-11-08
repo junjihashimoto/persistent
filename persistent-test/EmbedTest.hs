@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, CPP, GADTs, TypeFamilies, OverloadedStrings, FlexibleContexts, EmptyDataDecls, FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
 module EmbedTest (specs,
-#ifndef WITH_MONGODB
+#ifndef WITH_NOSQL
 embedMigrate
 #endif
 ) where
@@ -14,7 +14,7 @@ import Data.Typeable (Typeable)
 import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as M
-#if WITH_MONGODB
+#if WITH_NOSQL
 import Database.Persist.MongoDB
 import Database.MongoDB (genObjectId)
 import Database.MongoDB (Value(String))
@@ -38,7 +38,7 @@ instance PersistField a => PersistField (NonEmpty a) where
         Right (l:ls) -> Right (l:|ls)
 
 
-#if WITH_MONGODB
+#if WITH_NOSQL
 mkPersist persistSettings [persistUpperCase|
   HasObjectId
     oid  ObjectId
@@ -141,7 +141,7 @@ share [mkPersist sqlSettings,  mkMigrate "embedMigrate"] [persistUpperCase|
     ints [Int]
     deriving Show Eq
 |]
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
 cleanDB :: (PersistQuery backend, PersistEntityBackend HasMap ~ backend, MonadIO m) => ReaderT backend m ()
 cleanDB = do
   deleteWhere ([] :: [Filter HasEmbed])
@@ -266,7 +266,7 @@ specs = describe "embedded entities" $ do
       Just res <- selectFirst [EmbedsHasMapName ==. (Just "empty map")] []
       res @== Entity contK container
 
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
   it "List" $ db $ do
       k1 <- insert $ HasList []
       k2 <- insert $ HasList [k1]

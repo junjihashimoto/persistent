@@ -24,7 +24,7 @@ import Test.Hspec.QuickCheck(prop)
 
 import Database.Persist
 
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
 import qualified Database.MongoDB as MongoDB
 import Database.Persist.MongoDB (toInsertDoc, docToEntityThrow, collectionName, recordToDocument)
 
@@ -70,7 +70,7 @@ import Data.Functor.Constant
 import PersistTestPetType
 import PersistTestPetCollarType
 
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
 mkPersist persistSettings [persistUpperCase|
 #else
 share [mkPersist persistSettings,  mkMigrate "testMigrate", mkDeleteCascade persistSettings, mkSave "_ignoredSave"] [persistUpperCase|
@@ -147,7 +147,7 @@ deriving instance Show (BackendKey backend) => Show (PetGeneric backend)
 deriving instance Eq (BackendKey backend) => Eq (PetGeneric backend)
 
 share [mkPersist persistSettings { mpsPrefixFields = False, mpsGeneric = False }
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
       ] [persistUpperCase|
 #else
       , mkMigrate "noPrefixMigrate"
@@ -177,7 +177,7 @@ cleanDB = do
   deleteWhere ([] :: [Filter User])
   deleteWhere ([] :: [Filter Email])
 
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
 db :: Action IO () -> Assertion
 db = db' cleanDB
 #endif
@@ -205,7 +205,7 @@ specs = describe "persistent" $ do
       let p = Person "z" 1 Nothing
       _ <- insert p
       let action = selectList [FilterOr []] [Desc PersonAge]
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
       ps <- catchPersistException action []
 #else
       ps <- action
@@ -216,7 +216,7 @@ specs = describe "persistent" $ do
       let p = Person "z" 1 Nothing
       _ <- insert p
       let action = count $ [PersonName ==. "a"] ||. []
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
       c <- catchPersistException action 1
 #else
       c <- action
@@ -268,7 +268,7 @@ specs = describe "persistent" $ do
       p28 <- updateGet micK [PersonAge =. 28]
       personAge p28 @== 28
 
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
       updateWhere [PersonName ==. "Michael"] [PersonAge =. 29]
 #else
       uc <- updateWhereCount [PersonName ==. "Michael"] [PersonAge =. 29]
@@ -509,7 +509,7 @@ specs = describe "persistent" $ do
       keyNoAge <- insert noAge
       noAge2 <- updateGet keyNoAge [PersonMaybeAgeAge +=. Just 2]
       -- the correct answer is very debatable
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
       personMaybeAgeAge noAge2 @== Just 2
 #else
       personMaybeAgeAge noAge2 @== Nothing
@@ -714,7 +714,7 @@ specs = describe "persistent" $ do
         -}
 
 
-#ifdef WITH_MONGODB
+#ifdef WITH_NOSQL
   describe "raw MongoDB helpers" $ do
     it "collectionName" $ do
         collectionName (Person "Duder" 0 Nothing) @?= "Person"
@@ -819,7 +819,7 @@ specs = describe "persistent" $ do
 
 #ifndef WITH_MYSQL
 #  ifndef WITH_POSTGRESQL
-#    ifndef WITH_MONGODB
+#    ifndef WITH_NOSQL
   it "afterException" $ db $ do
     let catcher :: Monad m => SomeException -> m ()
         catcher _ = return ()
@@ -832,7 +832,7 @@ specs = describe "persistent" $ do
 #endif
 
 
-#ifndef WITH_MONGODB
+#ifndef WITH_NOSQL
   it "mpsNoPrefix" $ db $ do
     deleteWhere ([] :: [Filter NoPrefix2])
     deleteWhere ([] :: [Filter NoPrefix1])

@@ -153,18 +153,18 @@ library
    if flag(nooverlap)
      cpp-options: -DNO_OVERLAP
 
---   if !flag(postgresql) && !flag(mysql) && !flag(mongodb) && !flag(zookeeper)
-   exposed-modules: Database.Persist.Sqlite
-                    Database.Sqlite
+   if !flag(postgresql) && !flag(mysql) && !flag(mongodb) && !flag(zookeeper)
+     exposed-modules: Database.Persist.Sqlite
+                      Database.Sqlite
 
-   if flag(systemlib)
-       extra-libraries: sqlite3
-   else
-       c-sources:   cbits/sqlite3.c
-       cc-options:  -fPIC
+     if flag(systemlib)
+         extra-libraries: sqlite3
+     else
+         c-sources:   cbits/sqlite3.c
+         cc-options:  -fPIC
 
-   if !os(windows)
-       extra-libraries: pthread
+     if !os(windows)
+         extra-libraries: pthread
 
 
    if flag(postgresql)
@@ -197,24 +197,24 @@ library
                    , process
 
      hs-source-dirs: persistent-mongoDB
-     cpp-options: -DWITH_MONGODB -DDEBUG
+     cpp-options: -DWITH_NOSQL -DWITH_MONGODB -DDEBUG
      exposed-modules:
                      Database.Persist.MongoDB
 
    if flag(zookeeper)
      build-depends:
-                     hzk
+                     hzk >= 2.1.0
                    , stm
 
      hs-source-dirs: persistent-zookeeper
-     cpp-options: -DWITH_ZOOKEEPER -DDEBUG
+     cpp-options: -DWITH_NOSQL -DWITH_ZOOKEEPER -DDEBUG
      exposed-modules:
                      Database.Persist.Zookeeper
 
    if flag(couchdb)
      build-depends: CouchDB               >= 1.2
 
-     cpp-options: -DWITH_COUCHDB -DDEBUG
+     cpp-options: -DWITH_NOSQL -DWITH_COUCHDB -DDEBUG
      exposed-modules:
                      Database.Persist.CouchDB
    if flag(high_precision_date)
