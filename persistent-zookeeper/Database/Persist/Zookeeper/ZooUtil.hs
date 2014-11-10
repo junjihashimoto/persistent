@@ -12,12 +12,8 @@ module Database.Persist.Zookeeper.ZooUtil
 
 import qualified Database.Zookeeper as Z
 import qualified Data.ByteString.Char8 as B
--- import qualified Data.ByteString.Lazy as BL
-import qualified Data.Pool as P
-import Control.Concurrent
-import Control.Concurrent.STM
-import Data.Time
-import Data.Maybe
+import Control.Monad
+import Data.Monoid
 
 deriving instance Read (Z.ZKError)
 deriving instance Read (Z.Stat)
@@ -86,3 +82,32 @@ zCreate zk dir path value flag = do
         Right _ -> zCreate zk dir path value flag
     v' -> return v'
 
+zDeleteRecursive :: Z.Zookeeper
+                 -> String
+                 -> IO (Either Z.ZKError ())
+zDeleteRecursive zk dir = do
+  ls <- zGetTree zk dir
+  res <- forM (reverse ls) $ \node -> 
+    Z.delete zk node Nothing
+  return $ checkRes res
+  where
+    checkRes [] = Right ()
+    checkRes (Left val:_) = Left val
+    checkRes (Right _:xs) = checkRes xs
+  
+
+zGetTree :: Z.Zookeeper
+         -> String
+         -> IO [String]
+zGetTree zk dir = do
+  ls <- Z.getChildren zk dir Nothing
+  case ls of
+    Right dir' -> do
+      ls' <- forM dir' $ \d -> do 
+        zGetTree zk (dir <> "/" <> d)
+      return $ flatten ls' 
+    Left err' -> error ("zGetTree's error:" ++ show err')
+  where
+    flatten [[a]] = [a]
+    flatten [] = []
+    flatten (x:xs) = x ++ flatten xs

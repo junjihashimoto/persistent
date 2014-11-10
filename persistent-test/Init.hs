@@ -66,22 +66,18 @@ import qualified Data.ByteString as BS
 
 import Control.Monad (void, replicateM, liftM)
 
-#ifdef WITH_MONGODB
+#  ifdef WITH_MONGODB
 import qualified Database.MongoDB as MongoDB
 import Database.Persist.MongoDB (Action, withMongoPool, runMongoDBPool, defaultMongoConf, applyDockerEnv, BackendKey(..))
+#  endif
 
-setup = setupMongo
-type Context = MongoDB.MongoContext
-#endif
-
-#ifdef WITH_ZOOKEEPER
+#  ifdef WITH_ZOOKEEPER
 import qualified Database.Zookeeper as Z
-import Database.Persist.Zookeeper (ZooStat, ZookeeperT, withZookeeperConn, runZookeeperPool, defaultZookeeperConf, BackendKey(..))
-
-setup = setupZoo
-type Action = ZookeeperT
-type Context = ZooStat
-#endif
+import Database.Persist.Zookeeper (Action, withZookeeperPool, runZookeeperPool, ZookeeperConf(..), defaultZookeeperConf, BackendKey(..), deleteRecursive)
+import Data.IORef (newIORef, IORef, writeIORef, readIORef)
+import System.IO.Unsafe (unsafePerformIO)
+import qualified Data.Text as T
+#  endif
 
 #else
 import Control.Monad (liftM)
@@ -110,6 +106,22 @@ import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Int (Int32, Int64)
 
 import Control.Monad.IO.Class
+
+
+#ifdef WITH_MONGODB
+setup :: Action IO ()
+setup = setupMongo
+type Context = MongoDB.MongoContext
+#endif
+
+#ifdef WITH_ZOOKEEPER
+setup :: Action IO ()
+setup = setupZookeeper
+type Context = Z.Zookeeper
+#endif
+
+
+
 
 (@/=), (@==), (==@) :: (Eq a, Show a, MonadIO m) => a -> a -> m ()
 infix 1 @/= --, /=@
@@ -163,13 +175,13 @@ setupMongo = void $ MongoDB.dropDatabase dbName
 #endif
 
 #ifdef WITH_ZOOKEEPER
-runConn :: (MonadIO m, MonadBaseControl IO m) => ZookeeperT m backend -> m ()
+runConn :: (MonadIO m, MonadBaseControl IO m) => Action m backend -> m ()
 runConn f = do
-  conf <- liftIO $ applyDockerEnv $ defaultMongoConf dbName -- { mgRsPrimary = Just "replicaset" }
-  void $ withMongoPool conf $ runMongoDBPool MongoDB.master f
+  let conf = defaultZookeeperConf {zCoord = "localhost:2181/" ++ T.unpack dbName}
+  void $ withZookeeperPool conf $ runZookeeperPool f
 
 setupZookeeper :: Action IO ()
-setupZookeeper = void $ return () 
+setupZookeeper = deleteRecursive "/"
 #endif
 
 db' :: Action IO () -> Action IO () -> Assertion
@@ -240,6 +252,7 @@ instance Random Int64 where
 
 instance Arbitrary PersistValue where
     arbitrary = PersistInt64 `fmap` choose (0, maxBound)
+
 #endif
 
 instance PersistStore backend => Arbitrary (BackendKey backend) where
@@ -249,9 +262,24 @@ instance PersistStore backend => Arbitrary (BackendKey backend) where
           Left e -> error $ unpack e
           Right r -> r
 
+#ifdef WITH_NOSQL
 #ifdef WITH_MONGODB
-generateKey :: IO (BackendKey MongoDB.MongoContext)
+generateKey :: IO (BackendKey Context)
 generateKey = MongoKey `liftM` MongoDB.genObjectId
+#endif
+
+#ifdef WITH_ZOOKEEPER
+keyCounter :: IORef Int64
+keyCounter = unsafePerformIO $ newIORef 1
+{-# NOINLINE keyCounter #-}
+
+generateKey :: IO (BackendKey Context)
+generateKey = do
+    i <- readIORef keyCounter
+    writeIORef keyCounter (i + 1)
+    return $ ZooKey $ T.pack $ show i
+#endif
+
 #else
 keyCounter :: IORef Int64
 keyCounter = unsafePerformIO $ newIORef 1

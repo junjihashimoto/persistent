@@ -203,13 +203,20 @@ library
 
    if flag(zookeeper)
      build-depends:
-                     hzk >= 2.1.0
-                   , stm
+                     hzk                >= 2.1.0
+                   , process
 
      hs-source-dirs: persistent-zookeeper
      cpp-options: -DWITH_NOSQL -DWITH_ZOOKEEPER -DDEBUG
      exposed-modules:
                      Database.Persist.Zookeeper
+     other-modules:  Database.Persist.Zookeeper.Config
+                     Database.Persist.Zookeeper.Internal
+                     Database.Persist.Zookeeper.Store
+                     Database.Persist.Zookeeper.Unique
+                     Database.Persist.Zookeeper.Query
+                     Database.Persist.Zookeeper.PathPiece
+                     Database.Persist.Zookeeper.ZooUtil
 
    if flag(couchdb)
      build-depends: CouchDB               >= 1.2
@@ -238,10 +245,9 @@ test-suite test
                  , scientific
 
   if flag(zookeeper)
-      build-depends:   hzk
-      cpp-options: -DWITH_ZOOKEEPER -DDEBUG
+      cpp-options: -DWITH_NOSQL -DWITH_ZOOKEEPER -DDEBUG
   if flag(mongodb)
-      cpp-options: -DWITH_MONGODB -DDEBUG
+      cpp-options: -DWITH_NOSQL -DWITH_MONGODB -DDEBUG
   if flag(postgresql)
       cpp-options: -DWITH_POSTGRESQL
   if flag(mysql)

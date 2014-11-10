@@ -15,9 +15,11 @@ import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as M
 #if WITH_NOSQL
+#ifdef WITH_MONGODB
 import Database.Persist.MongoDB
 import Database.MongoDB (genObjectId)
 import Database.MongoDB (Value(String))
+#endif
 import EntityEmbedTest
 import System.Process (readProcess)
 #endif
@@ -40,6 +42,7 @@ instance PersistField a => PersistField (NonEmpty a) where
 
 #if WITH_NOSQL
 mkPersist persistSettings [persistUpperCase|
+#ifdef WITH_MONGODB
   HasObjectId
     oid  ObjectId
     name Text
@@ -54,6 +57,7 @@ mkPersist persistSettings [persistUpperCase|
     hasEntity (Entity ARecord)
     arrayWithEntities [AnEntity]
     deriving Show Eq Read Ord
+#endif
 
 #else
 share [mkPersist sqlSettings,  mkMigrate "embedMigrate"] [persistUpperCase|
@@ -267,6 +271,7 @@ specs = describe "embedded entities" $ do
       res @== Entity contK container
 
 #ifdef WITH_NOSQL
+#ifdef WITH_MONGODB
   it "List" $ db $ do
       k1 <- insert $ HasList []
       k2 <- insert $ HasList [k1]
@@ -408,4 +413,5 @@ specs = describe "embedded entities" $ do
 
     lists <- selectList [] []
     fmap entityVal lists @== [ListEmbed [InList 1 2, InList 1 2] 1 2]
+#endif
 #endif

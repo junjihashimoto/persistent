@@ -22,12 +22,10 @@ txtToKey txt =
     Left v -> error $ T.unpack v
 
 keyToTxt :: (PersistEntity val) => Key val -> T.Text
---keyToTxt (Key (PersistText key)) = key
 keyToTxt key = 
   case keyToValues key of
     [PersistText txt] -> txt
     _ -> error "keyToTxt"
---keyToTxt v = error $ "do not support "++show v
 
 dummyFromKey :: Key v -> Maybe v
 dummyFromKey _ = Nothing
@@ -72,15 +70,6 @@ bin2entity bin =
 
 entity2path :: (PersistEntity val) => val -> String
 entity2path val = "/" <> (T.unpack $ val2table val)
-
--- entityAndKey2path :: (PersistEntity val) => val -> Key val -> String
--- entityAndKey2path val (Key (PersistText txt)) = entity2path val <> "/" <>  ( B.unpack $ B64.encode $ B.pack $ T.unpack txt)
--- entityAndKey2path _ _ = error "key is not persist text"
-
--- key2path :: (PersistEntity val) => Key val -> String
--- key2path key = entityAndKey2path (fromJust (dummyFromKey key)) key
-
-
 
 filter2path :: (PersistEntity val) => [Filter val] -> String 
 filter2path filterList = entity2path $ dummyFromFList filterList

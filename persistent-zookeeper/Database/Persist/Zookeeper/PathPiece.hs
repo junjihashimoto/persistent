@@ -10,7 +10,6 @@ module Database.Persist.Zookeeper.PathPiece
 import qualified Database.Zookeeper as Z
 import Database.Persist
 import Database.Persist.Zookeeper.Store
-import Database.Persist.Zookeeper.ZooUtil
 import Web.PathPieces (PathPiece (..))
 import Control.Applicative
 

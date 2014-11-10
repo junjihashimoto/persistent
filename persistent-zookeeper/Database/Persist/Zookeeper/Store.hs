@@ -5,50 +5,31 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Database.Persist.Zookeeper.Store where
+module Database.Persist.Zookeeper.Store (
+  deleteRecursive
+, BackendKey(..)
+)where
 
 import Database.Persist
 import qualified Database.Persist.Sql as Sql
--- import Database.Persist.Class
--- import Database.Persist.Types
 import Control.Exception
 import Control.Applicative
-import Control.Monad.IO.Class (MonadIO (..))
 import qualified Database.Zookeeper as Z
 import Data.Monoid
 import qualified Data.Text as T
--- import qualified Data.ByteString.Char8 as B
-import Database.Persist.Zookeeper.Config (ZookeeperT(..), thisConnection)
+import Database.Persist.Zookeeper.Config
 import Database.Persist.Zookeeper.Internal
 import Database.Persist.Zookeeper.ZooUtil
-import Data.Pool
 import Control.Monad
 import Control.Monad.Reader
 import qualified Data.Aeson as A
 
---data ZookeeperBackend
 
-  
--- -- | Execute Zookeeper transaction inside ZookeeperT monad transformer
-execZookeeperT :: (Read a,Show a,Monad m, MonadIO m) => (Z.Zookeeper -> IO (Either Z.ZKError a)) -> ReaderT Z.Zookeeper m a
-execZookeeperT action = do
-    s <- ask
-    r <- liftIO $ action s
-    case r of
-      (Right x) -> return x
-      (Left x)  -> liftIO $ throwIO $ userError $ "Zookeeper error: code" ++ show x --fail $ show x
-
--- instance PersistField DB.ObjectId where
---     toPersistValue = oidToPersistValue
---     fromPersistValue oid@(PersistObjectId _) = Right $ persistObjectIdToDbOid oid
---     fromPersistValue (PersistByteString bs) = fromPersistValue (PersistObjectId bs)
---     fromPersistValue _ = Left $ T.pack "expected PersistObjectId"
-
--- instance Sql.PersistFieldSql T.Text where
---     sqlType _ = Sql.SqlOther "doesn't make much sense for MongoDB"
+deleteRecursive :: (Monad m, MonadIO m) => String -> Action m ()
+deleteRecursive dir = execZookeeper $ \zk -> zDeleteRecursive zk dir
 
 instance Sql.PersistFieldSql (BackendKey Z.Zookeeper) where
-    sqlType _ = Sql.SqlOther "doesn't make much sense for MongoDB"
+    sqlType _ = Sql.SqlOther "doesn't make much sense for Zookeeper"
 
 instance A.ToJSON (BackendKey Z.Zookeeper) where
     toJSON (ZooKey key) = A.String key
@@ -59,49 +40,42 @@ instance A.FromJSON (BackendKey Z.Zookeeper) where
 
 
 instance PersistStore Z.Zookeeper where
-    --type PersistMonadBackend (ZookeeperT m) = ZookeeperBackend
     newtype BackendKey Z.Zookeeper = ZooKey { unZooKey :: T.Text }
         deriving (Show, Read, Eq, Ord, PersistField)
 
     insert val = do
       let dir = entity2path val
       let path = dir <> "/"
-      str <- execZookeeperT $ \zk -> do
+      str <- execZookeeper $ \zk -> do
         zCreate zk dir path (Just (entity2bin val)) [Z.Sequence]
       return $ txtToKey $ T.pack $ str
 
     insertKey key val = do
-      _ <- execZookeeperT $ \zk -> do
+      _ <- execZookeeper $ \zk -> do
         let dir = entity2path val
         zCreate zk dir (T.unpack (keyToTxt key)) (Just (entity2bin val)) []
       return ()
 
-    insertKey _ _ = fail "Wrong key type in insertKey"
-
     repsert key val = do
-      _ <- execZookeeperT $ \zk -> do
+      _ <- execZookeeper $ \zk -> do
         let dir = entity2path val
         zRepSert zk dir (T.unpack (keyToTxt key)) (Just (entity2bin val))
       return ()
-    repsert _ _ = fail "Wrong key type in repsert"
 
     replace key val = do
-      execZookeeperT $ \zk -> do
+      execZookeeper $ \zk -> do
         _ <- zReplace zk (T.unpack (keyToTxt key)) (Just (entity2bin val))
         return $ Right ()
       return ()
 
-    replace _ _ = fail "Wrong key type in replace"
-
     delete key = do
-      execZookeeperT $ \zk -> do
+      execZookeeper $ \zk -> do
         _ <- Z.delete zk (T.unpack (keyToTxt key)) Nothing
         return $ Right ()
       return ()
-    delete _ = fail "Wrong key type in delete"
 
     get key = do
-      r <- execZookeeperT $ \zk -> do
+      r <- execZookeeper $ \zk -> do
         val <- Z.get zk (T.unpack (keyToTxt key)) Nothing
         return $ Right val
       case r of
@@ -114,7 +88,6 @@ instance PersistStore Z.Zookeeper where
         (Right (Nothing,_stat)) -> do
           fail $ "data is nothing"
       
-    get  _ = fail "Wrong key type in get"
     update key valList = do
       va <- get key
       case va of

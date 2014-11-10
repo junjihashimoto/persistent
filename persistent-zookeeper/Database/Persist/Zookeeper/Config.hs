@@ -8,26 +8,31 @@
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Database.Persist.Zookeeper.Config
-    where
+module Database.Persist.Zookeeper.Config(
+  ZookeeperConf(..)
+, Connection
+, Action
+, execZookeeper
+, withZookeeperPool
+, runZookeeperPool
+, defaultZookeeperConf
+, defaultZookeeperSettings
+) where
 
 import Database.Persist
 import Database.Persist.TH
 import Language.Haskell.TH
-import qualified Database.Persist.Zookeeper.ZooUtil as Z
 import qualified Database.Zookeeper as Z
 import qualified Database.Zookeeper.Pool as Z
 import Data.Pool
 import Data.Aeson
-import Control.Monad (mzero, MonadPlus(..))
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Trans.Class (MonadTrans (..))
+import Control.Monad ()
+import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
-import Control.Applicative (Applicative (..))
-import Control.Monad.Reader(ReaderT(..))
-import Control.Monad.Reader.Class
+import Control.Monad.Reader
 import Data.Scientific() -- we require only RealFrac instance of Scientific
-import           Data.Time
+import Data.Time
+import Control.Exception
 
 -- | Information required to connect to a Zookeeper server
 data ZookeeperConf = ZookeeperConf {
@@ -39,28 +44,28 @@ data ZookeeperConf = ZookeeperConf {
 } deriving (Show)
 
 type Connection = Pool Z.Zookeeper
+type Action = ReaderT Z.Zookeeper
 
--- | Monad reader transformer keeping Zookeeper connection through out the work
-newtype ZookeeperT m a = ZookeeperT { runZookeeperT :: ReaderT Connection m a }
-    deriving (Monad, MonadIO, MonadTrans, Functor, Applicative, MonadPlus)
+instance HasPersistBackend Z.Zookeeper Z.Zookeeper where
+    persistBackend = id
 
--- | Extracts connection from ZookeeperT monad transformer
-thisConnection :: Monad m => ZookeeperT m Connection
-thisConnection = ZookeeperT ask
+execZookeeper :: (Read a,Show a,Monad m, MonadIO m) => (Z.Zookeeper -> IO (Either Z.ZKError a)) -> Action m a
+execZookeeper action = do
+    s <- ask
+    r <- liftIO $ action s
+    case r of
+      (Right x) -> return x
+      (Left x)  -> liftIO $ throwIO $ userError $ "Zookeeper error: code" ++ show x --fail $ show x
 
 -- | Run a connection reader function against a Zookeeper configuration
-withZookeeperConn :: (Monad m, MonadIO m) => ZookeeperConf -> (Connection -> m a) -> m a
-withZookeeperConn conf connectionReader = do
+withZookeeperPool :: (Monad m, MonadIO m) => ZookeeperConf -> (Connection -> m a) -> m a
+withZookeeperPool conf connectionReader = do
     conn <- liftIO $ createPoolConfig conf
     connectionReader conn
 
-runZookeeperPool :: ZookeeperT m a -> Connection -> m a
-runZookeeperPool (ZookeeperT r) = runReaderT r
-
---runZookeeper :: ZookeeperT m a -> Connection -> m a
-runZookeeper :: MonadBaseControl IO m =>
-                Connection -> ReaderT Z.Zookeeper m b -> m b
-runZookeeper pool action = withResource pool (\stat -> runReaderT action stat)
+runZookeeperPool :: MonadBaseControl IO m =>
+                    Action m b -> Connection -> m b
+runZookeeperPool action pool = withResource pool (\stat -> runReaderT action stat)
 
 defaultZookeeperConf :: ZookeeperConf
 defaultZookeeperConf = ZookeeperConf "localhost:2181" 10000 1 50 30
@@ -69,7 +74,7 @@ defaultZookeeperSettings :: MkPersistSettings
 defaultZookeeperSettings = (mkPersistSettings $ ConT ''Z.Zookeeper)
 
 instance PersistConfig ZookeeperConf where
-    type PersistConfigBackend ZookeeperConf = ZookeeperT
+    type PersistConfigBackend ZookeeperConf = Action
     type PersistConfigPool ZookeeperConf = Connection
 
     loadConfig (Object o) = do

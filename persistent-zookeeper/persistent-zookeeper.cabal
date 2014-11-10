@@ -1,5 +1,5 @@
 name:            persistent-zookeeper
-version:         0.1.0
+version:         0.2.0
 license:         BSD3
 license-file:    LICENSE
 author:          Junji Hashimoto <junji.hashimoto@gree.net>
@@ -37,7 +37,6 @@ library
                    , path-pieces
                    , template-haskell
                    , base64-bytestring
-                   , stm
                    , conduit
                    , containers
                    , resourcet
@@ -80,7 +79,6 @@ test-suite  basic
                    , path-pieces
                    , base64-bytestring
                    , hspec
-                   , stm
                    , conduit
                    , containers
                    , resourcet

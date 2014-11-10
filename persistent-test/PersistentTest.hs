@@ -25,8 +25,10 @@ import Test.Hspec.QuickCheck(prop)
 import Database.Persist
 
 #ifdef WITH_NOSQL
+#ifdef WITH_MONGODB
 import qualified Database.MongoDB as MongoDB
 import Database.Persist.MongoDB (toInsertDoc, docToEntityThrow, collectionName, recordToDocument)
+#endif
 
 #else
 
@@ -715,6 +717,7 @@ specs = describe "persistent" $ do
 
 
 #ifdef WITH_NOSQL
+#ifdef WITH_MONGODB
   describe "raw MongoDB helpers" $ do
     it "collectionName" $ do
         collectionName (Person "Duder" 0 Nothing) @?= "Person"
@@ -732,6 +735,7 @@ specs = describe "persistent" $ do
         MongoDB.save "Person" doc2
         Entity _ ent2 <- docToEntityThrow doc2
         liftIO $ p2 @?= ent2
+#endif
 #else
   it "rawSql/2+2" $ db $ do
       ret <- rawSql "SELECT 2+2" []

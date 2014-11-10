@@ -52,7 +52,7 @@ RefTable
     UniqueRefTable someVal
 |]
 #if WITH_NOSQL
-cleanDB :: ReaderT MongoContext IO ()
+cleanDB :: ReaderT Context IO ()
 cleanDB = do
   deleteWhere ([] :: [Filter IdTable])
   deleteWhere ([] :: [Filter LowerCaseTable])

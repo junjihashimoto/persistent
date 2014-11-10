@@ -8,9 +8,6 @@ module Database.Persist.Zookeeper.Unique
        where
 
 import Database.Persist
-import Control.Applicative (Applicative)
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Trans.Control (MonadBaseControl)
 import qualified Data.Text as T
 import qualified Database.Zookeeper as Z
 import Database.Persist.Zookeeper.Config
@@ -36,7 +33,7 @@ instance PersistUnique Z.Zookeeper where
         Just uniqVal -> do
           let key = (uniqkey2key uniqVal)
           let txt = keyToTxt key
-          execZookeeperT $ \zk -> do
+          execZookeeper $ \zk -> do
             let dir = entity2path val
             r <- zCreate zk dir (T.unpack txt) (Just (entity2bin val)) []
             case r of

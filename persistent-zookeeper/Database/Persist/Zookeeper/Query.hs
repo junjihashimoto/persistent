@@ -13,9 +13,9 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Reader
 import qualified Data.Text as T
 import qualified Database.Zookeeper as Z
+import Database.Persist.Zookeeper.Config
 import Database.Persist.Zookeeper.Internal
-import Database.Persist.Zookeeper.Store
-import Database.Persist.Zookeeper.ZooUtil
+import Database.Persist.Zookeeper.Store ()
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.Acquire
@@ -35,7 +35,7 @@ instance PersistQuery Z.Zookeeper where
           Nothing ->
             return ()
   deleteWhere filterList = do
-    (str::[String]) <- execZookeeperT $ \zk -> do
+    (str::[String]) <- execZookeeper $ \zk -> do
       Z.getChildren zk (filter2path filterList) Nothing
     loop str
     where
@@ -53,7 +53,7 @@ instance PersistQuery Z.Zookeeper where
         loop xs
   selectSourceRes filterList [] = do
     stat <- ask
-    (str::[String]) <- liftIO $ flip runReaderT stat $ execZookeeperT $ \zk -> do
+    (str::[String]) <- liftIO $ flip runReaderT stat $ execZookeeper $ \zk -> do
       Z.getChildren zk (filter2path filterList) Nothing
     return $ return $ loop stat str
     where
@@ -76,7 +76,7 @@ instance PersistQuery Z.Zookeeper where
   selectFirst _ _ = error "not supported selectOpt"
   selectKeysRes filterList [] = do 
     stat <- ask
-    (str::[String]) <- liftIO $ flip runReaderT stat $ execZookeeperT $ \zk -> 
+    (str::[String]) <- liftIO $ flip runReaderT stat $ execZookeeper $ \zk -> 
       Z.getChildren zk (filter2path filterList) Nothing
     return $ return (loop stat str)
     where
