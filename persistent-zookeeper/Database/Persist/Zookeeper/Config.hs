@@ -68,7 +68,7 @@ runZookeeperPool :: MonadBaseControl IO m =>
 runZookeeperPool action pool = withResource pool (\stat -> runReaderT action stat)
 
 defaultZookeeperConf :: ZookeeperConf
-defaultZookeeperConf = ZookeeperConf "localhost:2181" 10000 1 50 30
+defaultZookeeperConf = ZookeeperConf "localhost:2181" 10000 1 50 3
 
 defaultZookeeperSettings :: MkPersistSettings
 defaultZookeeperSettings = (mkPersistSettings $ ConT ''Z.Zookeeper)
@@ -81,8 +81,8 @@ instance PersistConfig ZookeeperConf where
         coord <- o .:? "coord" .!= "localhost:2181/"
         timeout <- o .:? "timeout" .!= 10000
         numstripes <- o .:? "num-stripes" .!= 1
-        (idletime :: Int) <- o .:? "idletime" .!= 30
-        maxresources <- o .:? "max-resource" .!= 50
+        (idletime :: Int) <- o .:? "idletime" .!= 50
+        maxresources <- o .:? "max-resource" .!= 3
 
         return ZookeeperConf {
             zCoord = coord
