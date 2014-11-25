@@ -32,10 +32,9 @@ instance PersistUnique Z.Zookeeper where
       case mUniqVal of
         Just uniqVal -> do
           let key = (uniqkey2key uniqVal)
-          let txt = keyToTxt key
           execZookeeper $ \zk -> do
             let dir = entity2path val
-            r <- zCreate zk dir (T.unpack txt) (Just (entity2bin val)) []
+            r <- zCreate zk dir (keyToTxt key) (Just (entity2bin val)) []
             case r of
               Right _ -> return $ Right $ Just key
               Left Z.NodeExistsError -> return $ Right $ Nothing

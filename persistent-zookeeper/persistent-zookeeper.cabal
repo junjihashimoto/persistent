@@ -40,6 +40,7 @@ library
                    , conduit
                    , containers
                    , resourcet
+                   , binary
 
     exposed-modules: Database.Persist.Zookeeper
 
@@ -50,6 +51,7 @@ library
                      Database.Persist.Zookeeper.Query
                      Database.Persist.Zookeeper.PathPiece
                      Database.Persist.Zookeeper.ZooUtil
+                     Database.Persist.Zookeeper.Binary
 
     ghc-options:     -Wall
 
@@ -62,7 +64,6 @@ test-suite  basic
                    , mtl
                    , transformers
                    , transformers-base
-                   , utf8-string           >= 0.3.7    && < 0.4.0
                    , bytestring            >= 0.10.0.0 && < 0.11.0.0
                    , text                  >= 0.8
                    , aeson                 >= 0.5

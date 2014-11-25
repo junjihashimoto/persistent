@@ -181,7 +181,9 @@ runConn f = do
   void $ withZookeeperPool conf $ runZookeeperPool f
 
 setupZookeeper :: Action IO ()
-setupZookeeper = deleteRecursive "/"
+setupZookeeper = do
+  liftIO $ Z.setDebugLevel Z.ZLogError
+  deleteRecursive "/"
 #endif
 
 db' :: Action IO () -> Action IO () -> Assertion

@@ -207,7 +207,7 @@ specs = describe "persistent" $ do
       let p = Person "z" 1 Nothing
       _ <- insert p
       let action = selectList [FilterOr []] [Desc PersonAge]
-#ifdef WITH_NOSQL
+#ifdef WITH_MONGODB
       ps <- catchPersistException action []
 #else
       ps <- action
@@ -218,7 +218,7 @@ specs = describe "persistent" $ do
       let p = Person "z" 1 Nothing
       _ <- insert p
       let action = count $ [PersonName ==. "a"] ||. []
-#ifdef WITH_NOSQL
+#ifdef WITH_MONGODB
       c <- catchPersistException action 1
 #else
       c <- action

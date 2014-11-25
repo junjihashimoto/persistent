@@ -9,6 +9,8 @@ module Database.Persist.Zookeeper.Query
 
 import Database.Persist
 import Data.Monoid
+import Data.List (sortBy)
+import Control.Monad
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Reader
 import qualified Data.Text as T
@@ -16,6 +18,7 @@ import qualified Database.Zookeeper as Z
 import Database.Persist.Zookeeper.Config
 import Database.Persist.Zookeeper.Internal
 import Database.Persist.Zookeeper.Store ()
+import Database.Persist.Zookeeper.ZooUtil
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.Acquire
@@ -36,12 +39,17 @@ instance PersistQuery Z.Zookeeper where
             return ()
   deleteWhere filterList = do
     (str::[String]) <- execZookeeper $ \zk -> do
-      Z.getChildren zk (filter2path filterList) Nothing
+      zGetChildren zk (filter2path filterList)
     loop str
     where
       loop [] = return ()
       loop (x:xs) = do
-        let key = txtToKey $ T.pack $ (filter2path filterList) <> "/" <> x
+        let key = txtToKey x
+        case filterList of
+          [] -> delete key
+          _ -> del key
+        loop xs
+      del key = do
         va <- get key
         case va of
           Nothing -> return ()
@@ -50,16 +58,20 @@ instance PersistQuery Z.Zookeeper where
             if chk
               then delete key
               else return ()
-        loop xs
-  selectSourceRes filterList [] = do
+        
+  selectSourceRes filterList opt = do
     stat <- ask
-    (str::[String]) <- liftIO $ flip runReaderT stat $ execZookeeper $ \zk -> do
-      Z.getChildren zk (filter2path filterList) Nothing
+    (str::[String]) <- liftIO $ flip runReaderT stat $ do
+      keys <- execZookeeper $ \zk -> do
+        Z.getChildren zk (filter2path filterList) Nothing
+      v <- selectOptParser keys opt
+--      liftIO $ print $ v
+      return v
     return $ return $ loop stat str
     where
       loop _ [] = return ()
       loop stat (x:xs) = do
-        let key = txtToKey $ T.pack $ (filter2path filterList) <> "/" <> x
+        let key = txtToKey x
         va <- liftIO $ flip runReaderT stat $ get key
         case va of
           Nothing -> return ()
@@ -69,20 +81,20 @@ instance PersistQuery Z.Zookeeper where
               then yield $ Entity key v
               else return ()
         loop stat xs
-  selectSourceRes _ _ = error "not supported selectOpt"
-  selectFirst filterList [] =  do
-    srcRes <- selectSourceRes filterList []
+  selectFirst filterList opt =  do
+    srcRes <- selectSourceRes filterList opt
     liftIO $ with srcRes ( $$ CL.head)
-  selectFirst _ _ = error "not supported selectOpt"
-  selectKeysRes filterList [] = do 
+  selectKeysRes filterList opt = do 
     stat <- ask
-    (str::[String]) <- liftIO $ flip runReaderT stat $ execZookeeper $ \zk -> 
-      Z.getChildren zk (filter2path filterList) Nothing
+    (str::[String]) <- liftIO $ flip runReaderT stat $ do
+      keys <- execZookeeper $ \zk -> do
+        Z.getChildren zk (filter2path filterList) Nothing
+      selectOptParser keys opt
     return $ return (loop stat str)
     where
       loop _ [] = return ()
       loop stat (x:xs) = do
-        let key = txtToKey $ T.pack $ (filter2path filterList) <> "/" <> x
+        let key = txtToKey x
         va <- liftIO $ flip runReaderT stat $ get key
         case va of
           Nothing -> return ()
@@ -92,7 +104,6 @@ instance PersistQuery Z.Zookeeper where
               then yield key
               else return ()
         loop stat xs
-  selectKeysRes  _ _ = error "not supported selectOpt"
   count filterList = do
     v <- selectList filterList []
     return $ length v
@@ -127,7 +138,7 @@ filterClauseHelper includeWhere orNull val filters =
     go (BackendFilter _) = error "BackendFilter not expected"
     go (FilterAnd []) = (True,"1=1", [])
     go (FilterAnd fs) = combineAND fs
-    go (FilterOr []) = (True,"1=0", [])
+    go (FilterOr []) = (False,"1=0", [])
     go (FilterOr fs)  = combineOR fs
     go (Filter field value pfilter) = 
       (showSqlFilter' pfilter (fieldval field val) allVals, 
@@ -175,4 +186,45 @@ filterClause :: PersistEntity val
              => val
              -> [Filter val]
              -> (Bool, T.Text, [PersistValue])
-filterClause val = filterClauseHelper True OrNullNo val
+filterClause val [] = (True,"",[])
+filterClause val filter = filterClauseHelper True OrNullNo val filter
+
+cmp' (k0,v0) (k1,v1) = compare v0 v1
+cmp'' (k0,v0) (k1,v1) = compare v1 v0
+
+
+conva ::  [[String]] -> [(String,Int)]
+conva keys = concat $ map (\(i,ks) -> map ((,) i) ks) $ zip [0..] keys
+convb ::  [(String,Int)] -> [[String]]
+convb keys = concat $ map (\(i,ks) -> map ((,) i) ks) $ zip [0..] keys
+
+selectOptParser' :: (PersistStore backend, MonadIO m, PersistEntity val, backend ~ PersistEntityBackend val) 
+                 => [[String]]
+                 -> [SelectOpt val]
+                 -> ReaderT backend m [[String]]
+selectOptParser' keys [] = do
+  return keys
+selectOptParser' keys (OffsetBy i:xs) = do
+  selectOptParser (drop i keys) xs
+selectOptParser' keys (LimitTo i:xs) = do
+  selectOptParser (take i keys) xs
+selectOptParser' keys (Asc field:xs) = do
+  keysWithVal <- forM keys $ \x -> do 
+    let key = txtToKey x
+    val <- get key
+    case val of
+      Nothing -> fail "can not get value"
+      Just v -> return $ (x,fieldval field v)
+  selectOptParser (map fst $ sortBy cmp' keysWithVal) xs
+selectOptParser' keys (Desc field:xs) = do
+  keysWithVal <- forM keys $ \x -> do 
+    let key = txtToKey x
+    val <- get key
+    case val of
+      Nothing -> fail "can not get value"
+      Just v -> return $ (x,fieldval field v)
+  selectOptParser (map fst $ sortBy cmp'' keysWithVal) xs
+
+selectOptParser keys opt = do
+  keys' <- selectOptParser' [keys] opt
+  return $ concat keys'

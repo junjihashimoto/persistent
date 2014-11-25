@@ -18,33 +18,57 @@ import Data.Monoid
 deriving instance Read (Z.ZKError)
 deriving instance Read (Z.Stat)
 
+zGet :: Z.Zookeeper
+     -> String
+     -> String
+     -> IO (Either Z.ZKError (Maybe B.ByteString, Z.Stat))
+zGet zk dir key = do
+  let path = dir <> "/" <> key
+  -- print $ "zGet"
+  -- print $ path
+  v <- Z.get zk path Nothing
+  -- print $ show v
+  return v
+
+zSet :: Z.Zookeeper
+     -> String
+     -> String
+     -> Maybe B.ByteString
+     -> Maybe Z.Version
+     -> IO (Either Z.ZKError Z.Stat)
+zSet zk dir key dat ver = do
+  let path = dir <> "/" <> key
+  Z.set zk path dat ver
+
 zModify :: Z.Zookeeper
-       -> String
-       -> (Maybe B.ByteString -> IO (Maybe B.ByteString))
-       -> IO (Either Z.ZKError Z.Stat)
-zModify  zk key f = do
-  v <- Z.get zk key Nothing
+        -> String
+        -> String
+        -> (Maybe B.ByteString -> IO (Maybe B.ByteString))
+        -> IO (Either Z.ZKError Z.Stat)
+zModify  zk dir key f = do
+  v <- zGet zk dir key
   case v of
     Right (con,ver) -> do
       v'' <- f con
-      v' <- Z.set zk key v'' (Just (Z.statVersion ver))
+      v' <- zSet zk dir key v'' (Just (Z.statVersion ver))
       case v' of
         Right _ -> return v'
-        Left _ -> zModify zk key f
+        Left _ -> zModify zk dir key f
     Left e -> return $ Left e
 
 zReplace :: Z.Zookeeper
-       -> String
-       -> (Maybe B.ByteString)
-       -> IO (Either Z.ZKError Z.Stat)
-zReplace  zk key v'' = do
-  v <- Z.get zk key Nothing
+         -> String
+         -> String
+         -> (Maybe B.ByteString)
+         -> IO (Either Z.ZKError Z.Stat)
+zReplace  zk dir key v'' = do
+  v <- zGet zk dir key
   case v of
     Right (_con,ver) -> do
-      v' <- Z.set zk key v'' (Just (Z.statVersion ver))
+      v' <- zSet zk dir key v'' (Just (Z.statVersion ver))
       case v' of
         Right _ -> return v'
-        Left _ -> zReplace zk key v''
+        Left _ -> zReplace zk dir key v''
     Left e -> return $ Left e
 
 zRepSert :: Z.Zookeeper
@@ -57,7 +81,7 @@ zRepSert  zk dir key v'' = do
   case v of
     Right _ -> return $ Right ()
     Left Z.NodeExistsError -> do
-      v' <- zReplace zk key v''
+      v' <- zReplace zk dir key v''
       case v' of
         Right _ -> return $ Right ()
         Left Z.NoNodeError -> do
@@ -66,27 +90,64 @@ zRepSert  zk dir key v'' = do
           return $ Left s
     Left v' -> return $ Left v'
 
+
+zGetChildren :: Z.Zookeeper
+             -> String
+             -> IO (Either Z.ZKError [String])
+zGetChildren  zk dir = do
+  -- print "zGetChild"
+  -- print dir
+  v <- Z.getChildren zk dir Nothing
+  -- print v
+  case v of
+    Right _ -> return v
+    Left Z.NoNodeError -> return $ Right []
+    Left _ -> return v
+
 zCreate :: Z.Zookeeper
        -> String
        -> String
        -> Maybe B.ByteString
        -> [Z.CreateFlag]
        -> IO (Either Z.ZKError String)
-zCreate zk dir path value flag = do
+zCreate zk dir key value flag = do
+  let path = dir <> "/" <> key
   v <- Z.create zk path value Z.OpenAclUnsafe flag
+  -- print $ "zCreate"
+  -- print $ path
+  -- print $ value
   case v of
     Left Z.NoNodeError -> do
       v' <- Z.create zk dir Nothing Z.OpenAclUnsafe []
       case v' of
-        Left v'' -> return $ Left v''
-        Right _ -> zCreate zk dir path value flag
-    v' -> return v'
+        Left _ -> return $ v'
+        Right _ -> zCreate zk dir key value flag
+    Left _ -> return v
+    Right path' -> return $ Right $ drop (length ( dir <> "/" )) path'
+
+
+
+zDelete :: Z.Zookeeper
+        -> String
+        -> String
+        -> Maybe Z.Version
+        -> IO (Either Z.ZKError ())
+zDelete zk dir key mversion = do
+  let path = dir <> "/" <> key
+  -- print "zDelete"
+  -- print dir
+  -- print "---"
+  -- print key
+  -- print "---"
+  Z.delete zk path mversion
 
 zDeleteRecursive :: Z.Zookeeper
                  -> String
                  -> IO (Either Z.ZKError ())
 zDeleteRecursive zk dir = do
   ls <- zGetTree zk dir
+  -- print $ "zDeleteR"
+  -- print $ show ls
   res <- forM (reverse ls) $ \node -> 
     Z.delete zk node Nothing
   return $ checkRes res
@@ -94,7 +155,6 @@ zDeleteRecursive zk dir = do
     checkRes [] = Right ()
     checkRes (Left val:_) = Left val
     checkRes (Right _:xs) = checkRes xs
-  
 
 zGetTree :: Z.Zookeeper
          -> String
@@ -105,9 +165,5 @@ zGetTree zk dir = do
     Right dir' -> do
       ls' <- forM dir' $ \d -> do 
         zGetTree zk (dir <> "/" <> d)
-      return $ flatten ls' 
+      return $ concat ls' 
     Left err' -> error ("zGetTree's error:" ++ show err')
-  where
-    flatten [[a]] = [a]
-    flatten [] = []
-    flatten (x:xs) = x ++ flatten xs

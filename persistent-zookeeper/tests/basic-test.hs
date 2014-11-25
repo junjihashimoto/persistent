@@ -32,7 +32,7 @@ main :: IO ()
 main = 
   withZookeeperPool zookeeperConf $ \conn -> do
     hspec $ do
-      let key = txtToKey "/person/WyJzVGVzdC9ob2dlIl0="
+      let key = txtToKey "WyJzVGVzdC9ob2dlIl0="
       let val = Person "Test/hoge" 12 Nothing
       describe "PersistUnique test" $ do
         it "insertUnique" $ do
@@ -68,6 +68,13 @@ main =
                                            a@(bool,_,_) -> do
                                            print $ show a
                                            bool `shouldBe` expbool
+        it "FilterTest Filter OR/AND" $ do
+          check (Person "Test/hoge" 12 Nothing) [FilterOr[]] True
+          check (Person "Test/hoge" 12 Nothing) [FilterAnd[]] True
+        it "FilterTest Nothing" $ do
+          check (Person "Test/hoge" 12 Nothing) [] True
+          check (Person "Test/hoge" 12 (Just 3)) [] True
+          check (Person "Test/hoge" 12 Nothing) [] True
         it "FilterTestEq" $ do
           check (Person "Test/hoge" 12 Nothing) [PersonName ==. ""] False
           check (Person "Test/hoge" 12 (Just 3)) [PersonHoge ==. Just 3] True
