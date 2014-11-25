@@ -123,6 +123,7 @@ updateVals ((k,v):xs) u@(Update field _ _) =
 updateVals a _ = error $"not supported vals:" ++ show a
 
 updateVal :: PersistEntity val =>  PersistValue -> Update val -> PersistValue
+updateVal _org (BackendUpdate _) = error $ "BackendUpdate is not supported."
 updateVal org (Update _ val upd) = 
   case upd of
     Assign -> pval
@@ -130,6 +131,7 @@ updateVal org (Update _ val upd) =
     Subtract -> numSub org pval
     Multiply -> numMul org pval
     Divide -> numDiv org pval
+    BackendSpecificUpdate _ -> error $ "BackendSpecificUpdate is not supported."
   where
     pval = toPersistValue val
     numAdd (PersistInt64 l) (PersistInt64 r) =  (PersistInt64 (l + r))
@@ -152,5 +154,5 @@ updateVal org (Update _ val upd) =
     numDiv (PersistDouble l) (PersistDouble r) =  (PersistDouble (l / r))
     numDiv (PersistNull) (PersistDouble r) =  (PersistDouble (0 / r))
     numDiv _ _  = error "not support"
-updateVal _v _ = error "not supported"
+
 

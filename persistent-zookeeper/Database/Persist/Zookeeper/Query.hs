@@ -186,11 +186,9 @@ filterClause :: PersistEntity val
              => val
              -> [Filter val]
              -> (Bool, T.Text, [PersistValue])
-filterClause val [] = (True,"",[])
-filterClause val filter = filterClauseHelper True OrNullNo val filter
+filterClause _val [] = (True,"",[])
+filterClause val filter' = filterClauseHelper True OrNullNo val filter'
 
-cmp' True (k0,v0) (k1,v1) = compare v0 v1
-cmp' False (k0,v0) (k1,v1) = compare v1 v0
 
 addIdx :: [[String]] -> [(String,Int)]
 addIdx keys = concat $ map (\(i,ks) -> map (\k -> (k,i)) ks) $ zip [0..] keys
@@ -209,6 +207,10 @@ takeIdx num keys = delIdx $ take num $ addIdx keys
 
 sortIdx' :: Ord a => Bool -> [(String,a)] -> [[(String,a)]]
 sortIdx' asc keys = L.groupBy (\(_k0,i0) (_k1,i1)-> i0==i1) $ L.sortBy (cmp' asc) keys
+  where
+    cmp' True (_k0,v0) (_k1,v1) = compare v0 v1
+    cmp' False (_k0,v0) (_k1,v1) = compare v1 v0
+   
 
 sortIdx :: Ord a => Bool -> [[(String,a)]] -> [[(String,a)]]
 sortIdx asc keys = concat $ map (sortIdx' asc) keys
@@ -250,14 +252,14 @@ selectOptParser :: (PersistStore backend, MonadIO m, PersistEntity val, backend 
                  => [String]
                  -> [SelectOpt val]
                  -> ReaderT backend m [String]
-selectOptParser keys opt = do
-  keys' <- selectOptParser' [keys] $ selectOpt opt [] Nothing Nothing
+selectOptParser keys opt' = do
+  keys' <- selectOptParser' [keys] $ selectOpt opt' [] Nothing Nothing
   return $ concat keys'
-
-selectOpt (opt@(Asc _):opts) sortOpt offset limit = selectOpt opts (sortOpt++[opt]) offset limit
-selectOpt (opt@(Desc _):opts) sortOpt offset limit = selectOpt opts (sortOpt++[opt]) offset limit
-selectOpt (opt@(LimitTo _):opts) sortOpt offset Nothing = selectOpt opts sortOpt offset (Just opt)
-selectOpt (opt@(OffsetBy _):opts) sortOpt Nothing limit = selectOpt opts sortOpt (Just opt) limit
-selectOpt (opt:opts) sortOpt offset limit = selectOpt opts sortOpt offset limit
-selectOpt [] sortOpt offset limit = sortOpt ++ maybe [] (\v -> [v]) offset ++ maybe [] (\v -> [v]) limit
+  where
+    selectOpt (opt@(Asc _):opts) sortOpt offset limit = selectOpt opts (sortOpt++[opt]) offset limit
+    selectOpt (opt@(Desc _):opts) sortOpt offset limit = selectOpt opts (sortOpt++[opt]) offset limit
+    selectOpt (opt@(LimitTo _):opts) sortOpt offset Nothing = selectOpt opts sortOpt offset (Just opt)
+    selectOpt (opt@(OffsetBy _):opts) sortOpt Nothing limit = selectOpt opts sortOpt (Just opt) limit
+    selectOpt (_opt:opts) sortOpt offset limit = selectOpt opts sortOpt offset limit
+    selectOpt [] sortOpt offset limit = sortOpt ++ maybe [] (\v -> [v]) offset ++ maybe [] (\v -> [v]) limit
   

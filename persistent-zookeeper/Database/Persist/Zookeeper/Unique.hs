@@ -8,12 +8,10 @@ module Database.Persist.Zookeeper.Unique
        where
 
 import Database.Persist
-import qualified Data.Text as T
 import qualified Database.Zookeeper as Z
-import Database.Persist.Zookeeper.Config
 import Database.Persist.Zookeeper.Internal
-import Database.Persist.Zookeeper.Store
-import Database.Persist.Zookeeper.ZooUtil
+import Database.Persist.Zookeeper.Store()
+
 
 instance PersistUnique Z.Zookeeper where
     getBy uniqVal = do

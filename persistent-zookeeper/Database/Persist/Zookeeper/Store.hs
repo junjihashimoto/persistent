@@ -8,18 +8,12 @@
 module Database.Persist.Zookeeper.Store (
   deleteRecursive
 , BackendKey(..)
-, txtToKey
-, keyToTxt
-, uniqkey2key
 )where
 
 import Database.Persist
 import qualified Database.Persist.Sql as Sql
-import Control.Exception
-import Control.Applicative
 import qualified Database.Zookeeper as Z
 import Data.Monoid
-import Data.Maybe
 import qualified Data.Text as T
 import Database.Persist.Zookeeper.Config
 import Database.Persist.Zookeeper.Internal
@@ -27,10 +21,6 @@ import Database.Persist.Zookeeper.ZooUtil
 import Control.Monad
 import Control.Monad.Reader
 import qualified Data.Aeson as A
-
-import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy.Char8 as BL
-import qualified Data.ByteString.Base64.URL as B64
 
 import Web.PathPieces (PathPiece (..))
 

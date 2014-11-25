@@ -69,7 +69,7 @@ main =
                                            print $ show a
                                            bool `shouldBe` expbool
         it "FilterTest Filter OR/AND" $ do
-          check (Person "Test/hoge" 12 Nothing) [FilterOr[]] True
+          check (Person "Test/hoge" 12 Nothing) [FilterOr[]] False
           check (Person "Test/hoge" 12 Nothing) [FilterAnd[]] True
         it "FilterTest Nothing" $ do
           check (Person "Test/hoge" 12 Nothing) [] True
