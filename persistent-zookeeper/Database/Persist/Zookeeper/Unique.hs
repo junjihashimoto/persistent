@@ -27,18 +27,3 @@ instance PersistUnique Z.Zookeeper where
       let key = uniqkey2key uniqVal
       delete key
       
-    insertUnique val = do
-      mUniqVal <- val2uniqkey val
-      case mUniqVal of
-        Just uniqVal -> do
-          let key = (uniqkey2key uniqVal)
-          execZookeeper $ \zk -> do
-            let dir = entity2path val
-            r <- zCreate zk dir (keyToTxt key) (Just (entity2bin val)) []
-            case r of
-              Right _ -> return $ Right $ Just key
-              Left Z.NodeExistsError -> return $ Right $ Nothing
-              Left v -> return $ Left v
-        Nothing -> do
-          return $ Nothing
-

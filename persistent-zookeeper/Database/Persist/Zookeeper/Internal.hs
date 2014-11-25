@@ -15,22 +15,13 @@ import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.ByteString.Base64.URL as B64
 import qualified Data.Map as M
 
---txtToKey :: (PersistEntity val, PersistEntityBackedn val ~ Z.Zookeeper, Per) => String -> Key val
--- txtToKey txt = fromBackendKey $ ZooKey (T.pack txt)
 
--- keyToTxt :: (PersistEntity val) => Key val -> String
--- keyToTxt key = T.unpack $ unZooKey $ toBackendKey key
-
-
-  -- case keyToValues key of
-  --   [PersistText txt] -> T.unpack txt
-  --   v -> B.unpack $ B64.encode $ BL.toStrict $ A.encode $ v -- error "keyToTxt"
 
 txtToKey :: (PersistEntity val) => String -> Key val
 txtToKey txt = 
   case (keyFromValues [PersistText (T.pack txt)]) of
     Right v -> v
-    Left v ->
+    Left _v ->
       case B64.decode $ B.pack txt of
         Left v -> error $ v
         Right v' -> 
@@ -42,10 +33,10 @@ txtToKey txt =
             Nothing -> error "failed"
 
 keyToTxt :: (PersistEntity val) => Key val -> String
-keyToTxt key =  -- B.unpack $ B64.encode $ BL.toStrict $ A.encode $ keyToValues key
+keyToTxt key =
   case keyToValues key of
     [PersistText txt] -> T.unpack txt
-    v -> B.unpack $ B64.encode $ BL.toStrict $ A.encode $ v -- error "keyToTxt"
+    v -> B.unpack $ B64.encode $ BL.toStrict $ A.encode $ v
 
 dummyFromKey :: Key v -> Maybe v
 dummyFromKey _ = Nothing
@@ -111,10 +102,12 @@ getList val =
       in zip (getFieldsName val) fields
 getFieldsName :: (PersistEntity val) => val -> [T.Text]
 getFieldsName val =  fmap (unDBName.fieldDB) $ entityFields $ entityDef $ Just val
+
 getFieldName :: (PersistEntity val) => EntityField val typ -> T.Text
 getFieldName field =  unDBName $ fieldDB $ persistFieldDef $ field
+
 fieldval :: (PersistEntity val) => EntityField val typ -> val -> PersistValue
-fieldval field val =  (getMap val) M.! (getFieldName field)
+fieldval field val = (getMap val) M.! (getFieldName field)
 
 updateEntity :: PersistEntity val =>  val -> [Update val] -> Either T.Text val
 updateEntity val upds = 

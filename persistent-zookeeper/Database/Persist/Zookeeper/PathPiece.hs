@@ -10,12 +10,10 @@ module Database.Persist.Zookeeper.PathPiece
 import qualified Database.Zookeeper as Z
 import Database.Persist
 import Database.Persist.Zookeeper.Store
+import Database.Persist.Zookeeper.Internal
+import qualified Data.Text as T
 import Web.PathPieces (PathPiece (..))
 import Control.Applicative
-
--- | ToPathPiece is used to convert a key to/from text
-instance PathPiece (BackendKey Z.Zookeeper) where
-  fromPathPiece txt = pure $ ZooKey txt
-  toPathPiece (ZooKey txt) = txt
+import Data.Monoid
 
 

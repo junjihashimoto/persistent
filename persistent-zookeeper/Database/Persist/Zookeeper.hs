@@ -10,4 +10,3 @@ import Database.Persist.Zookeeper.Config
 import Database.Persist.Zookeeper.Store
 import Database.Persist.Zookeeper.Unique()
 import Database.Persist.Zookeeper.Query
-import Database.Persist.Zookeeper.PathPiece()

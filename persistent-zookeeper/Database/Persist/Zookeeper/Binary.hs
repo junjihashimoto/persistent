@@ -10,12 +10,11 @@ import Data.Time
 import Data.Int (Int64)
 import Data.Word (Word8)
 import Control.Monad (liftM, liftM3)
-import Data.Binary (Binary(..), encode, getWord8, Get)
+import Data.Binary (Binary(..), getWord8, Get)
 import qualified Data.Binary as Q
 import Data.Text (Text, unpack)
 import qualified Data.Text as T
 import Database.Persist.Types
-import Database.Persist.Class
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.UTF8 as U
@@ -131,7 +130,9 @@ instance Binary BinPersistValue where
     --     put (BinZT x)
 
     put (BinPersistValue (PersistDbSpecific _)) = undefined
-    put (BinPersistValue (PersistObjectId _)) = error "PersistObjectId is not supported."
+    put (BinPersistValue (PersistObjectId x)) = do
+        put (14 :: Word8)
+        put x
 
     get = do
         tag <- getWord8
@@ -153,6 +154,7 @@ instance Binary BinPersistValue where
                 11-> liftM (PersistMap . map (unBinText *** unBinPersistValue)) (Q.get :: Get [(BinText, BinPersistValue)])
                 12-> liftM PersistRational (Q.get :: Get Rational)
 --                13-> liftM (PersistZonedTime . unBinZT) (Q.get :: Get BinZT)
+                14-> liftM PersistObjectId (Q.get :: Get B.ByteString)
                 _ -> fail "Incorrect tag came to Binary deserialization"
         liftM BinPersistValue pv
 

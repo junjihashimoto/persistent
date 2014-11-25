@@ -32,41 +32,56 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.ByteString.Base64.URL as B64
 
+import Web.PathPieces (PathPiece (..))
 
-deleteRecursive :: (Monad m, MonadIO m) => String -> Action m ()
-deleteRecursive dir = execZookeeper $ \zk -> zDeleteRecursive zk dir
+-- | ToPathPiece is used to convert a key to/from text
+instance PathPiece (BackendKey Z.Zookeeper) where
+    toPathPiece key = "z" <> (unZooKey key)
+    fromPathPiece keyText = 
+      case T.uncons keyText of
+        Just ('z', prefixed) -> Just $ ZooKey prefixed
+        _ -> mzero
 
 instance Sql.PersistFieldSql (BackendKey Z.Zookeeper) where
     sqlType _ = Sql.SqlOther "doesn't make much sense for Zookeeper"
 
 instance A.ToJSON (BackendKey Z.Zookeeper) where
-    toJSON (ZooKey key) = A.String key
+    toJSON (ZooKey key) = A.toJSON $ "z" <> key
 
 instance A.FromJSON (BackendKey Z.Zookeeper) where
-    parseJSON (A.String key) = pure $ ZooKey key
-    parseJSON _ = mzero
+    parseJSON = A.withText "ZooKey" $ \t -> 
+      case T.uncons t of
+        Just ('z', prefixed) -> return $ ZooKey prefixed 
+        _ -> (fail "Invalid json for zookey")
+
+
+deleteRecursive :: (Monad m, MonadIO m) => String -> Action m ()
+deleteRecursive dir = execZookeeper $ \zk -> zDeleteRecursive zk dir
+
 
 instance PersistStore Z.Zookeeper where
     newtype BackendKey Z.Zookeeper = ZooKey { unZooKey :: T.Text }
         deriving (Show, Read, Eq, Ord, PersistField)
 
     insert val = do
-      let dir = entity2path val
-      str <- execZookeeper $ \zk -> do
-        -- let bin = entity2bin val
-        -- let ent = (bin2entity bin::)
-        -- print $ show $ entity2bin val
---        print $ show $ bin'
---        print $ show $ (A.decode (BL.fromStrict (fromJust bin)) :: Maybe [PersistValue])
-        zCreate zk dir "" (Just (entity2bin val)) [Z.Sequence]
-      return $ txtToKey str
+      mUniqVal <- val2uniqkey val
+      case mUniqVal of
+        Just uniqVal -> do
+          let key = (uniqkey2key uniqVal)
+          execZookeeper $ \zk -> do
+            let dir = entity2path val
+            r <- zCreate zk dir (keyToTxt key) (Just (entity2bin val)) []
+            case r of
+              Right _ -> return $ Right $ key
+--              Left Z.NodeExistsError -> return $ Right $ Nothing
+              Left v -> return $ Left v
+        Nothing -> do
+          let dir = entity2path val
+          str <- execZookeeper $ \zk -> do
+            zCreate zk dir "" (Just (entity2bin val)) [Z.Sequence]
+          return $ txtToKey str
 
     insertKey key val = do
-      -- liftIO $ print ("call insertkey"::String)
-      -- liftIO $ print $ show key
-      -- liftIO $ print $ show val
-      -- liftIO $ print $ show $ keyToTxt key
-      -- liftIO $ print $ show $ entity2bin val
       _ <- execZookeeper $ \zk -> do
         let dir = entity2path val
         zCreate zk dir (keyToTxt key) (Just (entity2bin val)) []

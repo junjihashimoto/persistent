@@ -9,7 +9,7 @@ module Database.Persist.Zookeeper.Query
 
 import Database.Persist
 import Data.Monoid
-import Data.List (sortBy)
+import qualified Data.List as L
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Reader
@@ -189,14 +189,32 @@ filterClause :: PersistEntity val
 filterClause val [] = (True,"",[])
 filterClause val filter = filterClauseHelper True OrNullNo val filter
 
-cmp' (k0,v0) (k1,v1) = compare v0 v1
-cmp'' (k0,v0) (k1,v1) = compare v1 v0
+cmp' True (k0,v0) (k1,v1) = compare v0 v1
+cmp' False (k0,v0) (k1,v1) = compare v1 v0
 
+addIdx :: [[String]] -> [(String,Int)]
+addIdx keys = concat $ map (\(i,ks) -> map (\k -> (k,i)) ks) $ zip [0..] keys
 
-conva ::  [[String]] -> [(String,Int)]
-conva keys = concat $ map (\(i,ks) -> map ((,) i) ks) $ zip [0..] keys
-convb ::  [(String,Int)] -> [[String]]
-convb keys = concat $ map (\(i,ks) -> map ((,) i) ks) $ zip [0..] keys
+delIdx :: [(String,Int)] -> [[String]]
+delIdx keys = fstIdx $ L.groupBy cmp keys
+  where
+    cmp :: (String,Int) -> (String,Int) -> Bool
+    cmp (_k0,i0) (_k1,i1) = i0==i1
+
+dropIdx :: Int -> [[String]] -> [[String]]
+dropIdx num keys = delIdx $ drop num $ addIdx keys
+
+takeIdx :: Int -> [[String]] -> [[String]]
+takeIdx num keys = delIdx $ take num $ addIdx keys
+
+sortIdx' :: Ord a => Bool -> [(String,a)] -> [[(String,a)]]
+sortIdx' asc keys = L.groupBy (\(_k0,i0) (_k1,i1)-> i0==i1) $ L.sortBy (cmp' asc) keys
+
+sortIdx :: Ord a => Bool -> [[(String,a)]] -> [[(String,a)]]
+sortIdx asc keys = concat $ map (sortIdx' asc) keys
+
+fstIdx :: Ord a => [[(String,a)]] -> [[String]]
+fstIdx keys = flip map keys $ \ks -> flip map ks $ \k -> fst k
 
 selectOptParser' :: (PersistStore backend, MonadIO m, PersistEntity val, backend ~ PersistEntityBackend val) 
                  => [[String]]
@@ -205,26 +223,41 @@ selectOptParser' :: (PersistStore backend, MonadIO m, PersistEntity val, backend
 selectOptParser' keys [] = do
   return keys
 selectOptParser' keys (OffsetBy i:xs) = do
-  selectOptParser (drop i keys) xs
+  selectOptParser' (dropIdx i keys) xs
 selectOptParser' keys (LimitTo i:xs) = do
-  selectOptParser (take i keys) xs
+  selectOptParser' (takeIdx i keys) xs
 selectOptParser' keys (Asc field:xs) = do
-  keysWithVal <- forM keys $ \x -> do 
-    let key = txtToKey x
-    val <- get key
-    case val of
-      Nothing -> fail "can not get value"
-      Just v -> return $ (x,fieldval field v)
-  selectOptParser (map fst $ sortBy cmp' keysWithVal) xs
+  keysWithVal <- forM keys $ \ks -> do
+    forM ks $ \k -> do 
+      let key = txtToKey k
+      val <- get key
+      case val of
+        Nothing -> fail "can not get value"
+        Just v -> return $ (k,fieldval field v)
+  selectOptParser' (fstIdx $ sortIdx True keysWithVal) xs
 selectOptParser' keys (Desc field:xs) = do
-  keysWithVal <- forM keys $ \x -> do 
-    let key = txtToKey x
-    val <- get key
-    case val of
-      Nothing -> fail "can not get value"
-      Just v -> return $ (x,fieldval field v)
-  selectOptParser (map fst $ sortBy cmp'' keysWithVal) xs
+  keysWithVal <- forM keys $ \ks -> do
+    forM ks $ \k -> do 
+      let key = txtToKey k
+      val <- get key
+      case val of
+        Nothing -> fail "can not get value"
+        Just v -> return $ (k,fieldval field v)
+  selectOptParser' (fstIdx $ sortIdx False keysWithVal) xs
 
+
+selectOptParser :: (PersistStore backend, MonadIO m, PersistEntity val, backend ~ PersistEntityBackend val) 
+                 => [String]
+                 -> [SelectOpt val]
+                 -> ReaderT backend m [String]
 selectOptParser keys opt = do
-  keys' <- selectOptParser' [keys] opt
+  keys' <- selectOptParser' [keys] $ selectOpt opt [] Nothing Nothing
   return $ concat keys'
+
+selectOpt (opt@(Asc _):opts) sortOpt offset limit = selectOpt opts (sortOpt++[opt]) offset limit
+selectOpt (opt@(Desc _):opts) sortOpt offset limit = selectOpt opts (sortOpt++[opt]) offset limit
+selectOpt (opt@(LimitTo _):opts) sortOpt offset Nothing = selectOpt opts sortOpt offset (Just opt)
+selectOpt (opt@(OffsetBy _):opts) sortOpt Nothing limit = selectOpt opts sortOpt (Just opt) limit
+selectOpt (opt:opts) sortOpt offset limit = selectOpt opts sortOpt offset limit
+selectOpt [] sortOpt offset limit = sortOpt ++ maybe [] (\v -> [v]) offset ++ maybe [] (\v -> [v]) limit
+  
