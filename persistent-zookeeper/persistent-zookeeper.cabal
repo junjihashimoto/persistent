@@ -49,7 +49,6 @@ library
                      Database.Persist.Zookeeper.Store
                      Database.Persist.Zookeeper.Unique
                      Database.Persist.Zookeeper.Query
-                     Database.Persist.Zookeeper.PathPiece
                      Database.Persist.Zookeeper.ZooUtil
                      Database.Persist.Zookeeper.Binary
 
